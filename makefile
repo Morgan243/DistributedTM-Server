@@ -4,7 +4,7 @@ COMP=g++
 SERVER_PATH=../NetComm.git/
 
 #we'll want to try and use C11 threads if the cross compiler can do it
-FLAGS=-lpthread --std=c++11
+FLAGS=-lpthread --std=c++11 -ggdb
 OUT=test
 
 

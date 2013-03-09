@@ -41,7 +41,7 @@ TM_Server::~TM_Server()
 void TM_Server::Start_Server()
 {
 //{{{
-    int temp_socket;
+    int temp_socket, client_id;
     Connected_Client temp_client;
 
    cout<<"Beginning listen..."<<endl; 
@@ -50,18 +50,12 @@ void TM_Server::Start_Server()
    while(!done)
    {
        cout<<"Accepting new client..."<<endl;
-            temp_socket = TM_Server::master_server.Accept();
+            client_id = TM_Server::master_server.Accept();
 
-       cout<<"Creating client threads back end..."<<endl;
-            //create a network point for this thread
-            temp_client.connection = new NC_Server(temp_socket);
-
-            //set addresses for reference, just in case
-            temp_client.connection->SetupAddress(TM_Server::address, TM_Server::port);
+            temp_client.id = client_id;
 
             connected_clients.push_back(temp_client);
 
-            connected_clients.back().id = connected_clients.size() - 1;
 
        cout<<"Launching client thread..."<<endl;
             connected_clients.back().client_thread = new std::thread(&TM_Server::LaunchClient, this, &connected_clients.back());
@@ -74,13 +68,20 @@ void TM_Server::Start_Server()
 void TM_Server::LaunchClient(Connected_Client *client)
 {
 //{{{
-    unsigned char in_buffer[1024], out_buffer[1024];
+    unsigned char in_buffer[1024], out_buffer[1024], byte_count = 0;
     cout<<"Thread handling client with id "<<client->id<<endl;
 
     while(!this->done)
     {
-        client->connection->Receive(in_buffer, 1024);
-        cout<<"Thread received "<<in_buffer<<" from client "<<client->id<<endl;
+        bzero(in_buffer, 1024);
+
+        cout<<"Receiving..."<<endl;
+        byte_count = TM_Server::master_server.Receive(in_buffer, 3, client->id);
+
+        if(byte_count > 0)
+            printf("Received : %s\n", in_buffer);
+        else if (byte_count < 0)
+            printf("Error, return is: %d\n", byte_count);
     }
 //}}}
 }

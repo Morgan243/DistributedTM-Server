@@ -7,7 +7,7 @@ struct Connected_Client
     std::thread *client_thread;
     std::string name;
     unsigned int id;
-    NC_Server *connection;
+    //NC_Server *connection;
 };
 
 class TM_Server
