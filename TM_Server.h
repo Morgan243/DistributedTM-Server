@@ -1,6 +1,14 @@
 #include <iostream>
 #include <thread>
+
 #include "../NetComm.git/NC_Server.h"
+
+struct TM_Message
+{
+    unsigned char code;
+    unsigned int address;
+    unsigned int value;
+};
 
 struct Connected_Client
 {
@@ -10,6 +18,7 @@ struct Connected_Client
     unsigned int id;
     //NC_Server *connection;
 };
+
 
 class TM_Server
 {

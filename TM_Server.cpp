@@ -82,7 +82,6 @@ void TM_Server::LaunchClient(Connected_Client *client)
         in_buffer.erase();
 
         cout<<"Receiving..."<<endl;
-        //byte_count = TM_Server::master_server.Receive((unsigned char *)in_buffer.c_str(), 1024, client->id);
         byte_count = TM_Server::master_server.Receive(&in_buffer, 1024, client->id);
 
 
@@ -94,6 +93,11 @@ void TM_Server::LaunchClient(Connected_Client *client)
         if(in_buffer.find("SHUTDOWN") != string::npos)
         {
             client->client_done = true;
+        }
+        else
+        {
+            cout<<"echoing..."<<endl;
+            TM_Server::master_server.Send((unsigned char *)in_buffer.c_str(), byte_count, client->id);
         }
     }
 
