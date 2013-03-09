@@ -16,6 +16,8 @@ struct Connected_Client
     std::thread *client_thread;
     std::string name;
     unsigned int id;
+    TM_Message out_message, in_message;
+    std::string in_buffer;
     unsigned char out_buffer[1024];
 };
 
@@ -33,7 +35,7 @@ class TM_Server
 
 
         void SendMessage(TM_Message out_message, unsigned char out_buffer[]);
-        TM_Message ReceiveMessage(std::string in_buffer);
+        TM_Message ReceiveMessage(std::string in_buffer, int client_id);
 
     public:
 

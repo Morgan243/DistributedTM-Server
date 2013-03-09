@@ -52,27 +52,42 @@ void TM_Server::SendMessage(TM_Message out_message, unsigned char out_buffer[])
         TM_Server::master_server.Send(out_buffer, size);
 }
 
-TM_Message TM_Server::ReceiveMessage(string in_buffer)
+TM_Message TM_Server::ReceiveMessage(string in_buffer, int client_id)
 {
 //{{{
     unsigned pos1, pos2;
     TM_Message temp_message;
 
-    pos1 = in_buffer.find_first_of(":");
+    in_buffer.clear();
 
-    temp_message.code = in_buffer[pos1 - 1];
-    
-    in_buffer[pos1] = '-';
+    TM_Server::master_server.Receive(&in_buffer, 1024, client_id);
 
-    pos2 = in_buffer.find_first_of(":");
+    if(in_buffer != "SHUTDOWN")
+    {
+        pos1 = in_buffer.find_first_of(":");
 
-    temp_message.address = (unsigned int) atoi(in_buffer.substr(pos1+1, pos2-1).c_str());
-    
-    temp_message.address = (unsigned int) atoi(in_buffer.substr(pos2+1, in_buffer.length()).c_str());
+        temp_message.code = in_buffer[pos1 - 1];
+        
+        in_buffer[pos1] = '-';
 
-    cout<<hex<<"\tcode: "<<(unsigned int)temp_message.code<<endl;
-    cout<<hex<<"\taddr: "<<temp_message.address<<endl;
-    cout<<hex<<"\tvalue: "<<temp_message.value<<endl;
+        pos2 = in_buffer.find_first_of(":");
+
+        temp_message.address = (unsigned int) atoi(in_buffer.substr(pos1+1, pos2-1).c_str());
+        
+        temp_message.address = (unsigned int) atoi(in_buffer.substr(pos2+1, in_buffer.length()).c_str());
+
+        cout<<hex<<"\tcode: "<<(unsigned int)temp_message.code<<endl;
+        cout<<hex<<"\taddr: "<<temp_message.address<<endl;
+        cout<<hex<<"\tvalue: "<<temp_message.value<<endl;
+    }
+    else
+    {
+        temp_message.code = 0xFF;
+        temp_message.address = 0;
+        temp_message.value = 0;
+    }
+
+    return temp_message;
 //}}}
 }
 
@@ -119,15 +134,16 @@ void TM_Server::LaunchClient(Connected_Client *client)
         in_buffer.erase();
 
         cout<<"Receiving..."<<endl;
-        byte_count = TM_Server::master_server.Receive(&in_buffer, 1024, client->id);
+        //byte_count = TM_Server::master_server.Receive(&in_buffer, 1024, client->id);
 
+        client->in_message = TM_Server::ReceiveMessage(client->in_buffer, client->id);
 
         if(byte_count > 0)
             cout<<"Received: "<<in_buffer<<endl;
         else if (byte_count < 0)
             printf("Error, return is: %d\n", byte_count);
 
-        if(in_buffer.find("SHUTDOWN") != string::npos)
+        if(client->in_message.code == 0xFF)
         {
             client->client_done = true;
         }
@@ -137,10 +153,15 @@ void TM_Server::LaunchClient(Connected_Client *client)
             cin>>user_in;
             
             if(user_in == "y")
-                TM_Server::master_server.Send((unsigned char *)in_buffer.c_str(), byte_count, client->id);
+            {
+                client->out_message = client->in_message;
+                TM_Server::SendMessage(client->out_message, client->out_buffer); //echo back for ACK
+            }
             else if (user_in == "n")
             {
-
+                client->out_message = client->in_message;
+                client->out_message.code = 0x66;
+                TM_Server::SendMessage(client->out_message, client->out_buffer); //echo back for ACK
             }
         }
     }
