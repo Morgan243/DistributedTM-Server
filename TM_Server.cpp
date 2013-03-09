@@ -40,6 +40,42 @@ TM_Server::~TM_Server()
 //}}}
 }
 
+void TM_Server::SendMessage(TM_Message out_message, unsigned char out_buffer[])
+{
+        //clear data buffer
+        bzero(out_buffer, sizeof(out_buffer));
+    
+       //get string version of data
+       int size = sprintf((char*)out_buffer, "%c:%u:%u", out_message.code, out_message.address,out_message.value);
+
+        cout<<"Message to send: "<<out_buffer<<endl;
+        TM_Server::master_server.Send(out_buffer, size);
+}
+
+TM_Message TM_Server::ReceiveMessage(string in_buffer)
+{
+//{{{
+    unsigned pos1, pos2;
+    TM_Message temp_message;
+
+    pos1 = in_buffer.find_first_of(":");
+
+    temp_message.code = in_buffer[pos1 - 1];
+    
+    in_buffer[pos1] = '-';
+
+    pos2 = in_buffer.find_first_of(":");
+
+    temp_message.address = (unsigned int) atoi(in_buffer.substr(pos1+1, pos2-1).c_str());
+    
+    temp_message.address = (unsigned int) atoi(in_buffer.substr(pos2+1, in_buffer.length()).c_str());
+
+    cout<<hex<<"\tcode: "<<(unsigned int)temp_message.code<<endl;
+    cout<<hex<<"\taddr: "<<temp_message.address<<endl;
+    cout<<hex<<"\tvalue: "<<temp_message.value<<endl;
+//}}}
+}
+
 void TM_Server::Start_Server()
 {
 //{{{
@@ -70,7 +106,8 @@ void TM_Server::Start_Server()
 void TM_Server::LaunchClient(Connected_Client *client)
 {
 //{{{
-     client->client_done = false;
+    string user_in;
+    client->client_done = false;
     string in_buffer, out_buffer[1024];
     int byte_count = 0;
 
@@ -96,8 +133,15 @@ void TM_Server::LaunchClient(Connected_Client *client)
         }
         else
         {
-            cout<<"echoing..."<<endl;
-            TM_Server::master_server.Send((unsigned char *)in_buffer.c_str(), byte_count, client->id);
+            cout<<"Allow this operation? (y/n)"<<endl;
+            cin>>user_in;
+            
+            if(user_in == "y")
+                TM_Server::master_server.Send((unsigned char *)in_buffer.c_str(), byte_count, client->id);
+            else if (user_in == "n")
+            {
+
+            }
         }
     }
 

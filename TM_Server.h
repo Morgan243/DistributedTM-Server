@@ -16,7 +16,7 @@ struct Connected_Client
     std::thread *client_thread;
     std::string name;
     unsigned int id;
-    //NC_Server *connection;
+    unsigned char out_buffer[1024];
 };
 
 
@@ -25,10 +25,15 @@ class TM_Server
     private:
         static bool done;
 
+
         static std::string address;
         static unsigned int port;
         static NC_Server master_server;
         static std::vector<Connected_Client> connected_clients;
+
+
+        void SendMessage(TM_Message out_message, unsigned char out_buffer[]);
+        TM_Message ReceiveMessage(std::string in_buffer);
 
     public:
 
