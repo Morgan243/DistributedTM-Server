@@ -4,6 +4,7 @@
 
 struct Connected_Client
 {
+    bool client_done;
     std::thread *client_thread;
     std::string name;
     unsigned int id;

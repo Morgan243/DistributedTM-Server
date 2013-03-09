@@ -1,3 +1,5 @@
+#include <cstring>
+#include <string>
 #include "TM_Server.h"
 
 using namespace std;
@@ -68,21 +70,35 @@ void TM_Server::Start_Server()
 void TM_Server::LaunchClient(Connected_Client *client)
 {
 //{{{
-    unsigned char in_buffer[1024], out_buffer[1024], byte_count = 0;
+     client->client_done = false;
+    string in_buffer, out_buffer[1024];
+    int byte_count = 0;
+
     cout<<"Thread handling client with id "<<client->id<<endl;
 
-    while(!this->done)
+    while(!this->done && !client->client_done)
     {
-        bzero(in_buffer, 1024);
+        //bzero(in_buffer.c_str(), 1024);
+        in_buffer.erase();
 
         cout<<"Receiving..."<<endl;
-        byte_count = TM_Server::master_server.Receive(in_buffer, 3, client->id);
+        //byte_count = TM_Server::master_server.Receive((unsigned char *)in_buffer.c_str(), 1024, client->id);
+        byte_count = TM_Server::master_server.Receive(&in_buffer, 1024, client->id);
+
 
         if(byte_count > 0)
-            printf("Received : %s\n", in_buffer);
+            cout<<"Received: "<<in_buffer<<endl;
         else if (byte_count < 0)
             printf("Error, return is: %d\n", byte_count);
+
+        if(in_buffer.find("SHUTDOWN") != string::npos)
+        {
+            client->client_done = true;
+        }
     }
+
+
+    cout<<"Client Sent SHUTDOWN command, terminating thread..."<<endl;
 //}}}
 }
 
