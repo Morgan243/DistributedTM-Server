@@ -3,6 +3,16 @@
 
 #include "../NetComm.git/NC_Server.h"
 
+#ifndef TM_SERVER_H
+#define TM_SERVER_H
+
+#define READ 0x01
+#define WRITE 0x02
+#define COMMIT 0x04
+#define ABORT 0x08
+#define SYNC 0x10
+#define MUTEX 0x20
+
 //holds data that goes between client and server
 struct TM_Message
 {
@@ -61,3 +71,4 @@ class TM_Server
         //threads for each client fun here
         void LaunchClient(Connected_Client *client);
 };
+#endif

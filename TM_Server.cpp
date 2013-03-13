@@ -203,7 +203,7 @@ void TM_Server::LaunchClient(Connected_Client *client)
                 client->out_message = client->in_message;
 
                 //send some abort code
-                client->out_message.code = 0x66;
+                client->out_message.code = ABORT;
                 TM_Server::SendMessage(client->out_message, client->out_buffer); //echo back for ACK
             }
         }
