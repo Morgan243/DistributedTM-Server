@@ -2,6 +2,7 @@
 #include <thread>
 
 #include "../NetComm.git/NC_Server.h"
+#include "../access_cache.git/Cache.h"
 
 #ifndef TM_SERVER_H
 #define TM_SERVER_H
@@ -12,6 +13,7 @@
 #define ABORT 0x08
 #define SYNC 0x10
 #define MUTEX 0x20
+#define INIT 0x40
 
 //holds data that goes between client and server
 struct TM_Message
