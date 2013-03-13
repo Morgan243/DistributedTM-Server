@@ -15,6 +15,9 @@
 #define MUTEX 0x20
 #define INIT 0x40
 
+#define MEMORY_SIZE 10
+#define USING_CACHE 1
+
 //holds data that goes between client and server
 struct TM_Message
 {
@@ -50,6 +53,8 @@ class TM_Server
         //listen address and port
         static std::string address;
         static unsigned int port;
+
+        static Cache access_cache;
 
         //networking back end, will store sockets for all connected clients
         static NC_Server master_server;

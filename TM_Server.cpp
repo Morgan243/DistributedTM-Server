@@ -8,6 +8,7 @@ using namespace std;
     //Static Var define
     //--------------------------
     //{{{
+    Cache TM_Server::access_cache;
     std::vector<Connected_Client> TM_Server::connected_clients;
     NC_Server TM_Server::master_server;
     unsigned int TM_Server::port;
@@ -30,6 +31,9 @@ TM_Server::TM_Server()
 
     //don't stop until done is true
     TM_Server::done = false;
+
+    for(int i = 0; i < MEMORY_SIZE; i++)
+        access_cache.AddCacheLine();
 //}}}
 }
 
@@ -136,10 +140,21 @@ void TM_Server::Start_Server()
     //loop continues until end
     while(!done)
     {
+        temp_client.in_buffer.clear();
+        temp_client.name.clear();
+        temp_client.client_done = false;
+
         cout<<"Accepting new client..."<<endl;
 
         //accept a client, get its id
         temp_client.id = TM_Server::master_server.Accept();
+
+        TM_Server::master_server.Receive(&temp_client.in_buffer, 1024, temp_client.id);
+
+        cout<<">>Name declared as: "<<temp_client.in_buffer<<endl;
+        temp_client.name = temp_client.in_buffer;
+
+        TM_Server::access_cache.AddProcessor(temp_client.name); 
 
         //store the client in vector
         connected_clients.push_back(temp_client);
