@@ -19,7 +19,7 @@
 #define MEMORY_SIZE 10
 #define USING_CACHE 1
 #define DEBUG 1
-#define PROMPT 1
+#define PROMPT 0
 
 //holds data that goes between client and server
 struct TM_Message

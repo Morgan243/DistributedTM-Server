@@ -1,3 +1,4 @@
+#include <mutex>
 #include <cstring>
 #include <string>
 #include "TM_Server.h"
@@ -9,6 +10,7 @@ using namespace std;
     //--------------------------
     //{{{
     std::vector<unsigned int> TM_Server::memory;
+    std::mutex TM_Server::cache_lock;
     Cache TM_Server::access_cache;
     std::vector<Connected_Client> TM_Server::connected_clients;
     NC_Server TM_Server::master_server;
@@ -65,7 +67,7 @@ void TM_Server::SendMessage(TM_Message out_message, unsigned char out_buffer[])
        int size 
            = sprintf((char*)out_buffer, "%c:%u:%u", out_message.code, out_message.address,out_message.value);
 
-        cout<<"Message to send: "<<out_buffer<<endl;
+        //cout<<"Message to send: "<<out_buffer<<endl;
 
         //send out the formatted string
         TM_Server::master_server.Send(out_buffer, size);
@@ -121,7 +123,7 @@ TM_Message TM_Server::ReceiveMessage(string in_buffer, int client_id)
         
         //get the value out
         temp_message.value = (unsigned int) atoi(in_buffer.substr(pos2+1, in_buffer.length()).c_str());
-
+        cout<<"\tCLIENT: "<< client_id << endl;
         cout<<hex<<"\tcode: "<<(unsigned int)temp_message.code<<endl;
         cout<<hex<<"\taddr: "<<temp_message.address<<endl;
         cout<<hex<<"\tvalue: "<<temp_message.value<<endl;
@@ -207,7 +209,7 @@ void TM_Server::LaunchClient(Connected_Client *client)
         else
         {
             //check access cache here
-            if(client->in_message.code & WRITE)
+            if(client->in_message.code == WRITE)
             {
                 //{{{
                 #if DEBUG
@@ -236,16 +238,17 @@ void TM_Server::LaunchClient(Connected_Client *client)
                     //}}}
                 #else
                     //{{{
+                    cache_lock.lock();
                     //check access cache
                     if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).empty()
-                       || access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).empty())
+                       || access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
                     {
                         #if DEBUG
                          cout<<"\tAllowing..."<<endl;
                         #endif
                         //echo the message: output = input
                         client->out_message = client->in_message;
-                       
+                        access_cache.SetProcessorOperation(client->in_message.address, client->name, WRITE_SET);
                     }
                     else
                     {
@@ -258,11 +261,12 @@ void TM_Server::LaunchClient(Connected_Client *client)
                         //send some abort code
                         client->out_message.code = ABORT;
                     }
+                    cache_lock.unlock();
                     //}}}
                 #endif
                 //}}}
             }
-            else if(client->in_message.code & READ)
+            else if(client->in_message.code == READ)
             {
                 //{{{
                 #if DEBUG
@@ -292,9 +296,10 @@ void TM_Server::LaunchClient(Connected_Client *client)
                     //}}}
                 #else
                     //{{{
+                    cache_lock.lock();
                     //check access cache
                     if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).empty()
-                       || access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).empty())
+                       || access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
                     {
                         #if DEBUG
                          cout<<"\tAllowing..."<<endl;
@@ -315,12 +320,13 @@ void TM_Server::LaunchClient(Connected_Client *client)
                         //send some abort code
                         client->out_message.code = ABORT;
                     }
+                    cache_lock.unlock();
                     //}}}
                 #endif
                 //}}}
 
             }
-            else if(client->in_message.code & COMMIT)
+            else if(client->in_message.code == COMMIT)
             {
                 //{{{
                 #if DEBUG
@@ -350,6 +356,7 @@ void TM_Server::LaunchClient(Connected_Client *client)
                 #else
                     //{{{
                     bool abort;
+                    cache_lock.lock();
                     //first, get all addresses client is using in transaction
                     client_ops = access_cache.GetProcessorOperations(client->name);
                     for(int i = 0; (i < client_ops.size()) && !abort; i++)
@@ -358,7 +365,7 @@ void TM_Server::LaunchClient(Connected_Client *client)
                         if(client_ops[i] == READ_SET)
                         {
                             //should check commit write set here in order to be more than just r/w lock
-                            if(access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).size())
+                            if(access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).size())
                             {
                                 abort = true;
                             }
@@ -367,10 +374,11 @@ void TM_Server::LaunchClient(Connected_Client *client)
                         {
                             //should be checking write sets; (>1) to account for itself
                             if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).size() 
-                            || access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).size() > 1)
+                            || access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).size() > 1)
                                 abort = true;
                         }
                     }
+                    cache_lock.unlock();
                     //check access cache
                     if(!abort)
                     {
@@ -395,13 +403,12 @@ void TM_Server::LaunchClient(Connected_Client *client)
                     //}}}
                 #endif
                 //}}}
-
             }
-            else if(client->in_message.code & SYNC)
+            else if(client->in_message.code == SYNC)
             {
 
             }
-            else if(client->in_message.code & MUTEX)
+            else if(client->in_message.code == MUTEX)
             {
 
             }
@@ -423,7 +430,6 @@ void TM_Server::LaunchClient(Connected_Client *client)
                         //echo the message: output = input
                         client->out_message = client->in_message;
                         client->out_message.value = memory[client->out_message.address];
-                        access_cache.SetProcessorOperation(client->in_message.address, client->name,READ_SET);
                     }
                     else
                     {
@@ -437,6 +443,7 @@ void TM_Server::LaunchClient(Connected_Client *client)
                     //}}}
                 #else
                     //{{{
+                    cache_lock.lock();
                     //check access cache; should check commit write set
                     if(access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
                     {
@@ -459,6 +466,7 @@ void TM_Server::LaunchClient(Connected_Client *client)
                         //send some abort code
                         client->out_message.code = ABORT;
                     }
+                    cache_lock.unlock();
                     //}}}
                 #endif
                 //}}}
@@ -470,11 +478,13 @@ void TM_Server::LaunchClient(Connected_Client *client)
                     cout<<client->name<<" Address "<<client->in_message.address<<" being WRITE committed..."<<endl;
                 #endif
 
+                cache_lock.lock();
                 //set the value in memory
                 memory[client->in_message.address] = client->in_message.value;
 
                 //clear the operation bits
                 access_cache.SetProcessorOperation(client->in_message.address, client->name, 0);
+                cache_lock.unlock();
 
                 #if DEBUG
                 cout<<"\tCommit finished..."<<endl;
@@ -488,16 +498,16 @@ void TM_Server::LaunchClient(Connected_Client *client)
                     cout<<client->name<<" Address "<<client->in_message.address<<" being READ committed..."<<endl;
                 #endif
 
+                cache_lock.lock();
                 //clear the operation bits
                 access_cache.SetProcessorOperation(client->in_message.address, client->name, 0);
+                cache_lock.unlock();
 
                 #if DEBUG
                 cout<<"\tCommit finished..."<<endl;
                 #endif
                 //}}}
-
             }
-
 
         TM_Server::SendMessage(client->out_message, client->out_buffer);
         }
