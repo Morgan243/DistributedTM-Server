@@ -1,3 +1,4 @@
+#include <mutex>
 #include <iostream>
 #include <thread>
 
@@ -57,6 +58,7 @@ class TM_Server
         static unsigned int port;
 
         static Cache access_cache;
+        static std::mutex cache_lock;
 
         //networking back end, will store sockets for all connected clients
         static NC_Server master_server;

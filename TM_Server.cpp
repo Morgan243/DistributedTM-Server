@@ -405,6 +405,7 @@ void TM_Server::LaunchClient(Connected_Client *client)
             {
 
             }
+            //get client the value at address and set read
             else if(client->in_message.code & INIT)
             {
                 //{{{
@@ -422,6 +423,7 @@ void TM_Server::LaunchClient(Connected_Client *client)
                         //echo the message: output = input
                         client->out_message = client->in_message;
                         client->out_message.value = memory[client->out_message.address];
+                        access_cache.SetProcessorOperation(client->in_message.address, client->name,READ_SET);
                     }
                     else
                     {
@@ -436,7 +438,7 @@ void TM_Server::LaunchClient(Connected_Client *client)
                 #else
                     //{{{
                     //check access cache; should check commit write set
-                    if(access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).empty())
+                    if(access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
                     {
                         #if DEBUG
                          cout<<"\tAllowing..."<<endl;
@@ -444,6 +446,7 @@ void TM_Server::LaunchClient(Connected_Client *client)
                         //echo the message: output = input
                         client->out_message = client->in_message;
                         client->out_message.value = memory[client->out_message.address];
+                        access_cache.SetProcessorOperation(client->in_message.address, client->name,READ_SET);
                     }
                     else
                     {
@@ -462,6 +465,36 @@ void TM_Server::LaunchClient(Connected_Client *client)
             }
             else if(client->in_message.code == (COMMIT | WRITE))
             {
+                //{{{
+                #if DEBUG
+                    cout<<client->name<<" Address "<<client->in_message.address<<" being WRITE committed..."<<endl;
+                #endif
+
+                //set the value in memory
+                memory[client->in_message.address] = client->in_message.value;
+
+                //clear the operation bits
+                access_cache.SetProcessorOperation(client->in_message.address, client->name, 0);
+
+                #if DEBUG
+                cout<<"\tCommit finished..."<<endl;
+                #endif
+                //}}}
+            }
+            else if(client->in_message.code == (COMMIT | READ))
+            {
+                //{{{
+                #if DEBUG
+                    cout<<client->name<<" Address "<<client->in_message.address<<" being READ committed..."<<endl;
+                #endif
+
+                //clear the operation bits
+                access_cache.SetProcessorOperation(client->in_message.address, client->name, 0);
+
+                #if DEBUG
+                cout<<"\tCommit finished..."<<endl;
+                #endif
+                //}}}
 
             }
 
