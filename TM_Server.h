@@ -17,6 +17,8 @@
 
 #define MEMORY_SIZE 10
 #define USING_CACHE 1
+#define DEBUG 1
+#define PROMPT 1
 
 //holds data that goes between client and server
 struct TM_Message
@@ -61,6 +63,9 @@ class TM_Server
 
         //every clients client-specific data
         static std::vector<Connected_Client> connected_clients;
+
+        //shared memory; index is address
+        static std::vector<unsigned int> memory;
 
         //parse and send out a TM_Message
         void SendMessage(TM_Message out_message, unsigned char out_buffer[]);

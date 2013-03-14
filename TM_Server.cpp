@@ -8,6 +8,7 @@ using namespace std;
     //Static Var define
     //--------------------------
     //{{{
+    std::vector<unsigned int> TM_Server::memory;
     Cache TM_Server::access_cache;
     std::vector<Connected_Client> TM_Server::connected_clients;
     NC_Server TM_Server::master_server;
@@ -33,7 +34,10 @@ TM_Server::TM_Server()
     TM_Server::done = false;
 
     for(int i = 0; i < MEMORY_SIZE; i++)
+    {
         access_cache.AddCacheLine();
+        memory.push_back(0);
+    }
 //}}}
 }
 
@@ -154,7 +158,8 @@ void TM_Server::Start_Server()
         cout<<">>Name declared as: "<<temp_client.in_buffer<<endl;
         temp_client.name = temp_client.in_buffer;
 
-        TM_Server::access_cache.AddProcessor(temp_client.name); 
+        //initial operation is zero
+        TM_Server::access_cache.AddProcessor(temp_client.name, 0); 
 
         //store the client in vector
         connected_clients.push_back(temp_client);
@@ -174,6 +179,7 @@ void TM_Server::LaunchClient(Connected_Client *client)
     string user_in;
     client->client_done = false;
 
+    vector<int> client_ops;
     cout<<"Thread handling client with id "<<client->id<<endl;
 
     //stop only if server stops or client shutdowns
@@ -201,26 +207,255 @@ void TM_Server::LaunchClient(Connected_Client *client)
         else
         {
             //check access cache here
-            cout<<"Allow this operation? (y/n)"<<endl;
-            cin>>user_in;
-            
-            //allow transaction
-            if(user_in == "y")
+            if(client->in_message.code & WRITE)
             {
-                //echo the message: output = input
-                client->out_message = client->in_message;
-                TM_Server::SendMessage(client->out_message, client->out_buffer); //echo back for ACK
-            }
-            //deny transaction
-            else if (user_in == "n")
-            {
-                //set out message
-                client->out_message = client->in_message;
+                //{{{
+                #if DEBUG
+                    cout<<client->name<<" attempting write on "<<hex<<client->in_message.address<<endl;
+                #endif
 
-                //send some abort code
-                client->out_message.code = ABORT;
-                TM_Server::SendMessage(client->out_message, client->out_buffer); //echo back for ACK
+                #if PROMPT
+                    //{{{
+                    cout<<"\tAllow? (y/n)"<<endl;
+                    cin>>user_in;
+                    if(user_in == "y")
+                    {
+                        cout<<"\tAllowing..."<<endl;
+                        //echo the message: output = input
+                        client->out_message = client->in_message;
+                    }
+                    else
+                    {
+                        cout<<"\tAborting..."<<endl;
+                        //set out message
+                        client->out_message = client->in_message;
+
+                        //send some abort code
+                        client->out_message.code = ABORT;
+                    }
+                    //}}}
+                #else
+                    //{{{
+                    //check access cache
+                    if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).empty()
+                       || access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).empty())
+                    {
+                        #if DEBUG
+                         cout<<"\tAllowing..."<<endl;
+                        #endif
+                        //echo the message: output = input
+                        client->out_message = client->in_message;
+                       
+                    }
+                    else
+                    {
+                        #if DEBUG
+                        cout<<"\tAborting..."<<endl;
+                        #endif
+                        //set out message
+                        client->out_message = client->in_message;
+
+                        //send some abort code
+                        client->out_message.code = ABORT;
+                    }
+                    //}}}
+                #endif
+                //}}}
             }
+            else if(client->in_message.code & READ)
+            {
+                //{{{
+                #if DEBUG
+                    cout<<client->name<<" attempting read on "<<hex<<client->in_message.address<<endl;
+                #endif
+
+                #if PROMPT
+                    //{{{
+                    cout<<"\tAllow? (y/n)"<<endl;
+                    cin>>user_in;
+                    if(user_in == "y")
+                    {
+                        cout<<"\tAllowing..."<<endl;
+                        //echo the message: output = input
+                        client->out_message = client->in_message;
+                        client->out_message.value = memory[client->out_message.address];
+                    }
+                    else
+                    {
+                        cout<<"\tAborting..."<<endl;
+                        //set out message
+                        client->out_message = client->in_message;
+
+                        //send some abort code
+                        client->out_message.code = ABORT;
+                    }
+                    //}}}
+                #else
+                    //{{{
+                    //check access cache
+                    if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).empty()
+                       || access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).empty())
+                    {
+                        #if DEBUG
+                         cout<<"\tAllowing..."<<endl;
+                        #endif
+                        //echo the message: output = input
+                        client->out_message = client->in_message;
+                        client->out_message.value = memory[client->out_message.address];
+                       
+                    }
+                    else
+                    {
+                        #if DEBUG
+                        cout<<"\tAborting..."<<endl;
+                        #endif
+                        //set out message
+                        client->out_message = client->in_message;
+
+                        //send some abort code
+                        client->out_message.code = ABORT;
+                    }
+                    //}}}
+                #endif
+                //}}}
+
+            }
+            else if(client->in_message.code & COMMIT)
+            {
+                //{{{
+                #if DEBUG
+                    cout<<client->name<<" attempting to begin commit..."<<endl;
+                #endif
+
+                #if PROMPT
+                    //{{{
+                    cout<<"\tAllow? (y/n)"<<endl;
+                    cin>>user_in;
+                    if(user_in == "y")
+                    {
+                        cout<<"\tAllowing..."<<endl;
+                        //echo the message: output = input
+                        client->out_message = client->in_message;
+                    }
+                    else
+                    {
+                        cout<<"\tAborting..."<<endl;
+                        //set out message
+                        client->out_message = client->in_message;
+
+                        //send some abort code
+                        client->out_message.code = ABORT;
+                    }
+                    //}}}
+                #else
+                    //{{{
+                    bool abort;
+                    //first, get all addresses client is using in transaction
+                    client_ops = access_cache.GetProcessorOperations(client->name);
+                    for(int i = 0; (i < client_ops.size()) && !abort; i++)
+                    {
+                        if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).size() > 1
+                        || access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).size() > 1)
+                            abort = true;
+                    }
+                    //check access cache
+                    if(!abort)
+                    {
+                        #if DEBUG
+                         cout<<"\tAllowing..."<<endl;
+                        #endif
+                        //echo the message: output = input
+                        client->out_message = client->in_message;
+                       
+                    }
+                    else
+                    {
+                        #if DEBUG
+                        cout<<"\tAborting..."<<endl;
+                        #endif
+                        //set out message
+                        client->out_message = client->in_message;
+
+                        //send some abort code
+                        client->out_message.code = ABORT;
+                    }
+                    //}}}
+                #endif
+                //}}}
+
+            }
+            else if(client->in_message.code & SYNC)
+            {
+
+            }
+            else if(client->in_message.code & MUTEX)
+            {
+
+            }
+            else if(client->in_message.code & INIT)
+            {
+                //{{{
+                #if DEBUG
+                    cout<<client->name<<" attempting inti on "<<hex<<client->in_message.address<<endl;
+                #endif
+
+                #if PROMPT
+                    //{{{
+                    cout<<"\tAllow? (y/n)"<<endl;
+                    cin>>user_in;
+                    if(user_in == "y")
+                    {
+                        cout<<"\tAllowing..."<<endl;
+                        //echo the message: output = input
+                        client->out_message = client->in_message;
+                        client->out_message.value = memory[client->out_message.address];
+                    }
+                    else
+                    {
+                        cout<<"\tAborting..."<<endl;
+                        //set out message
+                        client->out_message = client->in_message;
+
+                        //send some abort code
+                        client->out_message.code = ABORT;
+                    }
+                    //}}}
+                #else
+                    //{{{
+                    //check access cache
+                    if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).empty()
+                       || access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).empty())
+                    {
+                        #if DEBUG
+                         cout<<"\tAllowing..."<<endl;
+                        #endif
+                        //echo the message: output = input
+                        client->out_message = client->in_message;
+                        client->out_message.value = memory[client->out_message.address];
+                       
+                    }
+                    else
+                    {
+                        #if DEBUG
+                        cout<<"\tAborting..."<<endl;
+                        #endif
+                        //set out message
+                        client->out_message = client->in_message;
+
+                        //send some abort code
+                        client->out_message.code = ABORT;
+                    }
+                    //}}}
+                #endif
+                //}}}
+            }
+            else if(client->in_message.code == (COMMIT | WRITE))
+            {
+
+            }
+
+
+        TM_Server::SendMessage(client->out_message, client->out_buffer);
         }
     }
 
