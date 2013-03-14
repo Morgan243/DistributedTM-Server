@@ -354,9 +354,22 @@ void TM_Server::LaunchClient(Connected_Client *client)
                     client_ops = access_cache.GetProcessorOperations(client->name);
                     for(int i = 0; (i < client_ops.size()) && !abort; i++)
                     {
-                        if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).size() > 1
-                        || access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).size() > 1)
-                            abort = true;
+                        //make sure that only this processor has sets: this logic needs to be much more complex
+                        if(client_ops[i] == READ_SET)
+                        {
+                            //should check commit write set here in order to be more than just r/w lock
+                            if(access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).size())
+                            {
+                                abort = true;
+                            }
+                        }
+                        else if(client_ops[i] == WRITE_SET)
+                        {
+                            //should be checking write sets; (>1) to account for itself
+                            if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).size() 
+                            || access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).size() > 1)
+                                abort = true;
+                        }
                     }
                     //check access cache
                     if(!abort)
@@ -422,9 +435,8 @@ void TM_Server::LaunchClient(Connected_Client *client)
                     //}}}
                 #else
                     //{{{
-                    //check access cache
-                    if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).empty()
-                       || access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).empty())
+                    //check access cache; should check commit write set
+                    if(access_cache.GetMemoryOperations(client->in_message.addres, WRITE_SET).empty())
                     {
                         #if DEBUG
                          cout<<"\tAllowing..."<<endl;
@@ -432,7 +444,6 @@ void TM_Server::LaunchClient(Connected_Client *client)
                         //echo the message: output = input
                         client->out_message = client->in_message;
                         client->out_message.value = memory[client->out_message.address];
-                       
                     }
                     else
                     {
