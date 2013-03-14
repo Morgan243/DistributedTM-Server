@@ -42,6 +42,7 @@ struct Connected_Client
     TM_Message out_message, in_message; //temporary sending/receiving messages
     std::string in_buffer;              //raw input string
     unsigned char out_buffer[1024];     //output buffer
+    std::vector<int> client_ops;             //all operations of client
 
     std::thread *client_thread;         //thread that's dealing with client
 //}}}
@@ -84,5 +85,13 @@ class TM_Server
 
         //threads for each client fun here
         void LaunchClient(Connected_Client *client);
+
+        void HandleRequest(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
+
+        void WriteAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
+        void ReadAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
+        void CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
+        void SyncAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
+        void InitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
 };
 #endif
