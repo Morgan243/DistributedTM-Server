@@ -25,6 +25,7 @@ TM_Server::TM_Server()
 {
 //{{{
     //set hosting address and port
+    //TM_Server::address = "192.168.1.33";
     TM_Server::address = "127.0.0.1";
     TM_Server::port = 1337;
 
@@ -123,7 +124,7 @@ TM_Message TM_Server::ReceiveMessage(string in_buffer, int client_id)
         
         //get the value out
         temp_message.value = (unsigned int) atoi(in_buffer.substr(pos2+1, in_buffer.length()).c_str());
-        cout<<"\tCLIENT: "<< client_id << endl;
+        cout<<"\tCLIENT: "<< client_id << " sent "<<in_buffer<< endl;
         cout<<hex<<"\tcode: "<<(unsigned int)temp_message.code<<endl;
         cout<<hex<<"\taddr: "<<temp_message.address<<endl;
         cout<<hex<<"\tvalue: "<<temp_message.value<<endl;
@@ -262,6 +263,8 @@ void TM_Server::HandleRequest(Connected_Client *client, TM_Message *in_msg, TM_M
         access_cache.SetProcessorOperation(client->in_message.address, client->name, 0);
         cache_lock.unlock();
 
+        client->out_message = client->in_message;
+
         #if DEBUG
         cout<<"\tCommit finished..."<<endl;
         #endif
@@ -278,6 +281,9 @@ void TM_Server::HandleRequest(Connected_Client *client, TM_Message *in_msg, TM_M
         //clear the operation bits
         access_cache.SetProcessorOperation(client->in_message.address, client->name, 0);
         cache_lock.unlock();
+
+        client->out_message = client->in_message;
+        //SendMessage(client->in_message, client->out_buffer);
 
         #if DEBUG
         cout<<"\tCommit finished..."<<endl;
@@ -434,7 +440,7 @@ void TM_Server::CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_M
             //}}}
         #else
             //{{{
-            bool abort;
+            bool abort = false;
             cache_lock.lock();
             //first, get all addresses client is using in transaction
             client->client_ops = access_cache.GetProcessorOperations(client->name);
@@ -444,17 +450,21 @@ void TM_Server::CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_M
                 if(client->client_ops[i] == READ_SET)
                 {
                     //should check commit write set here in order to be more than just r/w lock
-                    if(access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).size())
+                    if(access_cache.GetMemoryOperations(i, WRITE_SET).size())
                     {
+                        cout<<"i = "<<i<<", Aborted READ due to WRTIE"<<endl;
                         abort = true;
                     }
                 }
                 else if(client->client_ops[i] == WRITE_SET)
                 {
                     //should be checking write sets; (>1) to account for itself
-                    if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).size() 
-                    || access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).size() > 1)
+                    if(access_cache.GetMemoryOperations(i, READ_SET).size() 
+                    || access_cache.GetMemoryOperations(i, WRITE_SET).size() > 1)
+                    {
+                        cout<<"Aborted WRITE due to WRTIE"<<endl;
                         abort = true;
+                    }
                 }
             }
             cache_lock.unlock();
@@ -486,7 +496,6 @@ void TM_Server::CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_M
 
 void TM_Server::SyncAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg)
 {
-
 }
 
 void TM_Server::InitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg)

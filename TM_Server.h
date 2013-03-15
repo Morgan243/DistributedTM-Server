@@ -16,7 +16,7 @@
 #define MUTEX 0x20
 #define INIT 0x40
 
-#define MEMORY_SIZE 10
+#define MEMORY_SIZE 4
 #define USING_CACHE 1
 #define DEBUG 1
 #define PROMPT 0
