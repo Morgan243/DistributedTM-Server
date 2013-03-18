@@ -86,8 +86,10 @@ class TM_Server
         //threads for each client fun here
         void LaunchClient(Connected_Client *client);
 
+        //determine which *Attempt method to call 
         void HandleRequest(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
 
+        //Try to do what the client requested, *Attempt methods
         void WriteAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
         void ReadAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
         void CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);

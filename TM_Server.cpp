@@ -182,17 +182,21 @@ void TM_Server::LaunchClient(Connected_Client *client)
     string user_in;
     client->client_done = false;
 
-    cout<<"Thread handling client with id "<<client->id<<endl;
+    #if DEBUG
+        cout<<"Thread handling client with id "<<client->id<<endl;
+    #endif
 
     //stop only if server stops or client shutdowns
     while(!this->done && !client->client_done)
     {
-        //bzero(in_buffer.c_str(), 1024);
+        //clear the string buffer
         client->in_buffer.erase();
 
-        cout<<"Receiving..."<<endl;
-        //byte_count = TM_Server::master_server.Receive(&in_buffer, 1024, client->id);
+        #if DEBUG
+            cout<<"Receiving..."<<endl;
+        #endif
 
+        //BLOCKING: receive and parse a single message
         client->in_message = TM_Server::ReceiveMessage(client->in_buffer, client->id);
 
         //check for error(==0)
@@ -216,7 +220,9 @@ void TM_Server::LaunchClient(Connected_Client *client)
         }
     }
 
-    cout<<"Client Sent SHUTDOWN command, terminating thread..."<<endl;
+    #if DEBUG
+        cout<<"Client Sent SHUTDOWN command, terminating thread..."<<endl;
+    #endif
 //}}}
 }
 
@@ -266,7 +272,7 @@ void TM_Server::HandleRequest(Connected_Client *client, TM_Message *in_msg, TM_M
         client->out_message = client->in_message;
 
         #if DEBUG
-        cout<<"\tCommit finished..."<<endl;
+            cout<<"\tCommit finished..."<<endl;
         #endif
         //}}}
     }
@@ -286,7 +292,7 @@ void TM_Server::HandleRequest(Connected_Client *client, TM_Message *in_msg, TM_M
         //SendMessage(client->in_message, client->out_buffer);
 
         #if DEBUG
-        cout<<"\tCommit finished..."<<endl;
+            cout<<"\tCommit finished..."<<endl;
         #endif
         //}}}
     }
@@ -328,8 +334,9 @@ void TM_Server::WriteAttempt(Connected_Client *client, TM_Message *in_msg, TM_Me
            || access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
         {
             #if DEBUG
-             cout<<"\tAllowing..."<<endl;
+                cout<<"\tAllowing..."<<endl;
             #endif
+
             //echo the message: output = input
             client->out_message = client->in_message;
             access_cache.SetProcessorOperation(client->in_message.address, client->name, WRITE_SET);
@@ -337,8 +344,9 @@ void TM_Server::WriteAttempt(Connected_Client *client, TM_Message *in_msg, TM_Me
         else
         {
             #if DEBUG
-            cout<<"\tAborting..."<<endl;
+                cout<<"\tAborting..."<<endl;
             #endif
+
             //set out message
             client->out_message = client->in_message;
 
@@ -387,7 +395,7 @@ void TM_Server::ReadAttempt(Connected_Client *client, TM_Message *in_msg, TM_Mes
                || access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
             {
                 #if DEBUG
-                 cout<<"\tAllowing..."<<endl;
+                    cout<<"\tAllowing..."<<endl;
                 #endif
                 //echo the message: output = input
                 client->out_message = client->in_message;
@@ -397,7 +405,7 @@ void TM_Server::ReadAttempt(Connected_Client *client, TM_Message *in_msg, TM_Mes
             else
             {
                 #if DEBUG
-                cout<<"\tAborting..."<<endl;
+                    cout<<"\tAborting..."<<endl;
                 #endif
                 //set out message
                 client->out_message = client->in_message;
@@ -452,7 +460,9 @@ void TM_Server::CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_M
                     //should check commit write set here in order to be more than just r/w lock
                     if(access_cache.GetMemoryOperations(i, WRITE_SET).size())
                     {
-                        cout<<"i = "<<i<<", Aborted READ due to WRTIE"<<endl;
+                        #if DEBUG
+                            cout<<"i = "<<i<<", Aborted READ due to WRTIE"<<endl;
+                        #endif
                         abort = true;
                     }
                 }
@@ -462,7 +472,9 @@ void TM_Server::CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_M
                     if(access_cache.GetMemoryOperations(i, READ_SET).size() 
                     || access_cache.GetMemoryOperations(i, WRITE_SET).size() > 1)
                     {
-                        cout<<"Aborted WRITE due to WRTIE"<<endl;
+                        #if DEBUG
+                            cout<<"Aborted WRITE due to WRTIE"<<endl;
+                        #endif
                         abort = true;
                     }
                 }
@@ -472,8 +484,9 @@ void TM_Server::CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_M
             if(!abort)
             {
                 #if DEBUG
-                 cout<<"\tAllowing..."<<endl;
+                     cout<<"\tAllowing..."<<endl;
                 #endif
+
                 //echo the message: output = input
                 client->out_message = client->in_message;
                
@@ -481,8 +494,9 @@ void TM_Server::CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_M
             else
             {
                 #if DEBUG
-                cout<<"\tAborting..."<<endl;
+                    cout<<"\tAborting..."<<endl;
                 #endif
+
                 //set out message
                 client->out_message = client->in_message;
 
@@ -533,7 +547,7 @@ void TM_Server::InitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Mes
             if(access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
             {
                 #if DEBUG
-                 cout<<"\tAllowing..."<<endl;
+                    cout<<"\tAllowing..."<<endl;
                 #endif
                 //echo the message: output = input
                 client->out_message = client->in_message;
@@ -543,7 +557,7 @@ void TM_Server::InitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Mes
             else
             {
                 #if DEBUG
-                cout<<"\tAborting..."<<endl;
+                    cout<<"\tAborting..."<<endl;
                 #endif
                 //set out message
                 client->out_message = client->in_message;
