@@ -96,4 +96,17 @@ class TM_Server
         void SyncAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
         void InitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
 };
+
+struct help_launchArgs
+{
+    TM_Server *context;
+    Connected_Client *client;
+};
+
+static void* help_launchThread(void *arg)
+{
+    help_launchArgs input = *((help_launchArgs *)arg);
+    input.context->LaunchClient(input.client);
+}
+
 #endif
