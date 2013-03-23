@@ -10,13 +10,15 @@ using namespace std;
     //--------------------------
     //{{{
     std::vector<unsigned int> TM_Server::memory;
-    std::mutex TM_Server::cache_lock;
+    //std::mutex TM_Server::cache_lock;
     Cache TM_Server::access_cache;
     std::vector<Connected_Client> TM_Server::connected_clients;
     NC_Server TM_Server::master_server;
     unsigned int TM_Server::port;
     string TM_Server::address;
     bool TM_Server::done;
+
+    static pthread_mutex_t cache_lock;
     //}}}
     //--------------------------
 
@@ -36,6 +38,8 @@ TM_Server::TM_Server()
     //don't stop until done is true
     TM_Server::done = false;
 
+    pthread_mutex_init(&cache_lock, NULL);
+
     for(int i = 0; i < MEMORY_SIZE; i++)
     {
         access_cache.AddCacheLine();
@@ -53,7 +57,8 @@ TM_Server::~TM_Server()
     //join all threads: threads might be blocking on receive, probably disconnect clients first
     for( int i = 0; i < connected_clients.size(); i++)
     {
-        connected_clients[i].client_thread->join();
+        //connected_clients[i].client_thread.join();
+        pthread_join(connected_clients[i].client_thread, NULL);
     }
 //}}}
 }
@@ -67,8 +72,6 @@ void TM_Server::SendMessage(TM_Message out_message, unsigned char out_buffer[])
        //get string version of data
        int size 
            = sprintf((char*)out_buffer, "%c:%u:%u", out_message.code, out_message.address,out_message.value);
-
-        //cout<<"Message to send: "<<out_buffer<<endl;
 
         //send out the formatted string
         TM_Server::master_server.Send(out_buffer, size);
@@ -138,7 +141,8 @@ void TM_Server::Start_Server()
 {
 //{{{
     Connected_Client temp_client;
-
+    help_launchArgs temp_args;
+    
     cout<<"Beginning listen..."<<endl; 
 
     //prepare for clients
@@ -169,9 +173,12 @@ void TM_Server::Start_Server()
 
         cout<<"Launching client thread..."<<endl;
 
+        temp_args.client = &connected_clients.back();
+        temp_args.context = this;
+
         //launch the clients thread into LaunchClient
-        connected_clients.back().client_thread 
-                        = new std::thread(&TM_Server::LaunchClient, this, &connected_clients.back());
+        pthread_create(&connected_clients.back().client_thread, NULL, help_launchThread, &temp_args);
+                        //= new std::thread(&TM_Server::LaunchClient, this, &connected_clients.back());
     }
    //}}}
 }
@@ -261,13 +268,15 @@ void TM_Server::HandleRequest(Connected_Client *client, TM_Message *in_msg, TM_M
             cout<<client->name<<" Address "<<client->in_message.address<<" being WRITE committed..."<<endl;
         #endif
 
-        cache_lock.lock();
+        pthread_mutex_lock(&cache_lock);
+        //cache_lock.lock();
         //set the value in memory
         memory[client->in_message.address] = client->in_message.value;
 
         //clear the operation bits
         access_cache.SetProcessorOperation(client->in_message.address, client->name, 0);
-        cache_lock.unlock();
+        //cache_lock.unlock();
+        pthread_mutex_unlock(&cache_lock);
 
         client->out_message = client->in_message;
 
@@ -283,10 +292,12 @@ void TM_Server::HandleRequest(Connected_Client *client, TM_Message *in_msg, TM_M
             cout<<client->name<<" Address "<<client->in_message.address<<" being READ committed..."<<endl;
         #endif
 
-        cache_lock.lock();
+        //cache_lock.lock();
+        pthread_mutex_lock(&cache_lock);
         //clear the operation bits
         access_cache.SetProcessorOperation(client->in_message.address, client->name, 0);
-        cache_lock.unlock();
+        //cache_lock.unlock();
+        pthread_mutex_unlock(&cache_lock);
 
         client->out_message = client->in_message;
         //SendMessage(client->in_message, client->out_buffer);
@@ -328,7 +339,8 @@ void TM_Server::WriteAttempt(Connected_Client *client, TM_Message *in_msg, TM_Me
         //}}}
     #else
         //{{{
-        cache_lock.lock();
+        pthread_mutex_lock(&cache_lock);
+        //cache_lock.lock();
         //check access cache
         if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).empty()
            || access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
@@ -353,7 +365,8 @@ void TM_Server::WriteAttempt(Connected_Client *client, TM_Message *in_msg, TM_Me
             //send some abort code
             client->out_message.code = ABORT;
         }
-        cache_lock.unlock();
+        //cache_lock.unlock();
+        pthread_mutex_unlock(&cache_lock);
         //}}}
     #endif
     //}}}
@@ -389,7 +402,8 @@ void TM_Server::ReadAttempt(Connected_Client *client, TM_Message *in_msg, TM_Mes
             //}}}
         #else
             //{{{
-            cache_lock.lock();
+            //cache_lock.lock();
+            pthread_mutex_lock(&cache_lock);
             //check access cache
             if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).empty()
                || access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
@@ -413,7 +427,8 @@ void TM_Server::ReadAttempt(Connected_Client *client, TM_Message *in_msg, TM_Mes
                 //send some abort code
                 client->out_message.code = ABORT;
             }
-            cache_lock.unlock();
+            pthread_mutex_lock(&cache_lock);
+            //cache_lock.unlock();
             //}}}
         #endif
         //}}}
@@ -449,7 +464,8 @@ void TM_Server::CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_M
         #else
             //{{{
             bool abort = false;
-            cache_lock.lock();
+            pthread_mutex_lock(&cache_lock);
+            //cache_lock.lock();
             //first, get all addresses client is using in transaction
             client->client_ops = access_cache.GetProcessorOperations(client->name);
             for(int i = 0; (i < client->client_ops.size()) && !abort; i++)
@@ -479,7 +495,8 @@ void TM_Server::CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_M
                     }
                 }
             }
-            cache_lock.unlock();
+            pthread_mutex_unlock(&cache_lock);
+            //cache_lock.unlock();
             //check access cache
             if(!abort)
             {
@@ -542,7 +559,8 @@ void TM_Server::InitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Mes
             //}}}
         #else
             //{{{
-            cache_lock.lock();
+            pthread_mutex_lock(&cache_lock);
+            //cache_lock.lock();
             //check access cache; should check commit write set
             if(access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
             {
@@ -565,7 +583,8 @@ void TM_Server::InitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Mes
                 //send some abort code
                 client->out_message.code = ABORT;
             }
-            cache_lock.unlock();
+            pthread_mutex_unlock(&cache_lock);
+            //cache_lock.unlock();
             //}}}
         #endif
         //}}}

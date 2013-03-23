@@ -1,5 +1,6 @@
 #include <mutex>
 #include <iostream>
+#include <pthread.h>
 #include <thread>
 
 #include "../NetComm.git/NC_Server.h"
@@ -43,8 +44,8 @@ struct Connected_Client
     std::string in_buffer;              //raw input string
     unsigned char out_buffer[1024];     //output buffer
     std::vector<int> client_ops;             //all operations of client
-
-    std::thread *client_thread;         //thread that's dealing with client
+    pthread_t client_thread;
+    //std::thread *client_thread;         //thread that's dealing with client
 //}}}
 };
 
@@ -59,7 +60,7 @@ class TM_Server
         static unsigned int port;
 
         static Cache access_cache;
-        static std::mutex cache_lock;
+        //static std::mutex cache_lock;
 
         //networking back end, will store sockets for all connected clients
         static NC_Server master_server;
