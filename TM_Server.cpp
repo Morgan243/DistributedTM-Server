@@ -124,7 +124,7 @@ TM_Message TM_Server::ReceiveMessage(string in_buffer, int client_id)
         
         //get the value out
         temp_message.value = (unsigned int) atoi(in_buffer.substr(pos2+1, in_buffer.length()).c_str());
-        cout<<"\tCLIENT: "<< client_id << " sent "<<in_buffer<< endl;
+        cout<<"CLIENT "<<client_id<<":"<<endl;
         cout<<hex<<"\tcode: "<<(unsigned int)temp_message.code<<endl;
         cout<<hex<<"\taddr: "<<temp_message.address<<endl;
         cout<<hex<<"\tvalue: "<<temp_message.value<<endl;
@@ -516,7 +516,7 @@ void TM_Server::InitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Mes
 {
         //{{{
         #if DEBUG
-            cout<<client->name<<" attempting inti on "<<hex<<client->in_message.address<<endl;
+            cout<<client->name<<" attempting init on "<<hex<<client->in_message.address<<endl;
         #endif
 
         #if PROMPT
