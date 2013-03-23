@@ -160,9 +160,10 @@ void TM_Server::Start_Server()
         //accept a client, get its id
         temp_client.id = TM_Server::master_server.Accept();
 
+        //receive name of client
         TM_Server::master_server.Receive(&temp_client.in_buffer, 1024, temp_client.id);
 
-        cout<<">>Name declared as: "<<temp_client.in_buffer<<endl;
+        cout<<">>Clent name declared as: "<<temp_client.in_buffer<<endl;
         temp_client.name = temp_client.in_buffer;
 
         //initial operation is zero
@@ -173,6 +174,7 @@ void TM_Server::Start_Server()
 
         cout<<"Launching client thread..."<<endl;
 
+        //setup pthreads helper function arguments
         temp_args.client = &connected_clients.back();
         temp_args.context = this;
 
@@ -465,7 +467,7 @@ void TM_Server::CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_M
             //{{{
             bool abort = false;
             pthread_mutex_lock(&cache_lock);
-            //cache_lock.lock();
+
             //first, get all addresses client is using in transaction
             client->client_ops = access_cache.GetProcessorOperations(client->name);
             for(int i = 0; (i < client->client_ops.size()) && !abort; i++)
@@ -496,7 +498,7 @@ void TM_Server::CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_M
                 }
             }
             pthread_mutex_unlock(&cache_lock);
-            //cache_lock.unlock();
+
             //check access cache
             if(!abort)
             {
