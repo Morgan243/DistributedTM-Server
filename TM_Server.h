@@ -72,10 +72,10 @@ class TM_Server
         static std::vector<unsigned int> memory;
 
         //parse and send out a TM_Message
-        void SendMessage(TM_Message out_message, unsigned char out_buffer[]);
+        void SendMessage(TM_Message out_message, unsigned char out_buffer[], int client_id);
 
         //receive data and put together a TM_Message
-        TM_Message ReceiveMessage(std::string in_buffer, int client_id);
+        void ReceiveMessage(std::string in_buffer, int client_id);
 
     public:
         TM_Server();
@@ -85,29 +85,37 @@ class TM_Server
         void Start_Server();
 
         //threads for each client fun here
-        void LaunchClient(Connected_Client *client);
+        void LaunchClient(int client_id);
 
         //determine which *Attempt method to call 
-        void HandleRequest(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
+        //void HandleRequest(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
+        void HandleRequest(int client_id);
 
         //Try to do what the client requested, *Attempt methods
-        void WriteAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
-        void ReadAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
-        void CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
-        void SyncAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
-        void InitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
+        void WriteAttempt(int client_id);
+        void ReadAttempt(int client_id);
+        void CommitAttempt(int client_id);
+        void SyncAttempt(int client_id);
+        void InitAttempt(int client_id);
+
+//        void WriteAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
+//        void ReadAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
+//        void CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
+//        void SyncAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
+//        void InitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
 };
 
 struct help_launchArgs
 {
     TM_Server *context;
-    Connected_Client *client;
+    int id;
+    //Connected_Client *client;
 };
 
 static void* help_launchThread(void *arg)
 {
     help_launchArgs input = *((help_launchArgs *)arg);
-    input.context->LaunchClient(input.client);
+    input.context->LaunchClient(input.id);
 }
 
 #endif
