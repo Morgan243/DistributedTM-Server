@@ -2,16 +2,16 @@
 COMP=g++
 
 SERVER_PATH=../NetComm.git/
-CACHE_PATH=../access_cache.git/
+CACHE_PATH=../sw_access_cache.git/
 
 #we'll want to try and use C11 threads if the cross compiler can do it
 FLAGS=-lpthread --std=c++11 -ggdb
 OUT=test
 
 
-all : main.o TM_Server.o  $(SERVER_PATH)NC_Server.o $(SERVER_PATH)/NetComm.o $(CACHE_PATH)/Cache.o $(CACHE_PATH)/CacheLine.o
+all : main.o TM_Server.o  $(SERVER_PATH)NC_Server.o $(SERVER_PATH)/NetComm.o $(CACHE_PATH)/RWStore.o $(CACHE_PATH)/AccessCache.o
 	$(COMP) main.o TM_Server.o $(SERVER_PATH)NC_Server.o $(SERVER_PATH)/NetComm.o \
-		$(CACHE_PATH)/Cache.o $(CACHE_PATH)/CacheLine.o $(FLAGS) -o $(OUT)
+		$(CACHE_PATH)/RWStore.o $(CACHE_PATH)/AccessCache.o $(FLAGS) -o $(OUT)
 
 main.o : main.cpp 
 	$(COMP) -c main.cpp $(FLAGS)

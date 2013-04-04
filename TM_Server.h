@@ -4,7 +4,7 @@
 #include <thread>
 
 #include "../NetComm.git/NC_Server.h"
-#include "../access_cache.git/Cache.h"
+#include "../sw_access_cache.git/AccessCache.h"
 
 #ifndef TM_SERVER_H
 #define TM_SERVER_H
@@ -59,8 +59,8 @@ class TM_Server
         static std::string address;
         static unsigned int port;
 
-        static Cache access_cache;
-        //static std::mutex cache_lock;
+        //static Cache access_cache;
+        static AccessCache access_cache;
 
         //networking back end, will store sockets for all connected clients
         static NC_Server master_server;
