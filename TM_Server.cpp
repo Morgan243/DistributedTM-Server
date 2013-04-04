@@ -19,6 +19,7 @@ using namespace std;
     bool TM_Server::done;
 
     static pthread_mutex_t cache_lock;
+    static pthread_mutex_t mem_lock;
     //}}}
     //--------------------------
 
@@ -39,6 +40,7 @@ TM_Server::TM_Server()
     TM_Server::done = false;
 
     pthread_mutex_init(&cache_lock, NULL);
+    pthread_mutex_init(&mem_lock, NULL);
 
     for(int i = 0; i < MEMORY_SIZE; i++)
     {
@@ -60,6 +62,12 @@ TM_Server::~TM_Server()
         //connected_clients[i].client_thread.join();
         pthread_join(connected_clients[i].client_thread, NULL);
     }
+
+    if(pthread_mutex_destroy(&cache_lock))
+        printf("Error destorying cache mutex!\n");
+    if(pthread_mutex_destroy(&mem_lock))
+        printf("Error destorying cache mutex!\n");
+
 //}}}
 }
 
@@ -73,11 +81,8 @@ void TM_Server::SendMessage(TM_Message out_message, unsigned char out_buffer[], 
        int size 
            = sprintf((char*)out_buffer, "%c:%u:%u", out_message.code, out_message.address,out_message.value);
 
-       cout<<"OUT BUFFER : "<<out_buffer<<endl;
-
         //send out the formatted string
         TM_Server::master_server.Send(out_buffer, size + 1, client_id);
-
 //}}}
 }
 
@@ -87,8 +92,10 @@ void TM_Server::ReceiveMessage(string in_buffer, int client_id)
     unsigned pos1, pos2;
     TM_Message temp_message;
 
+    //make sure buffer is empty
     in_buffer.clear();
 
+    //receive a message from the client
     int bytes_recv = TM_Server::master_server.Receive(&in_buffer, 1024, client_id);
 
     cout<<"Bytes received in receive message: "<<bytes_recv<<endl;
@@ -132,10 +139,13 @@ void TM_Server::ReceiveMessage(string in_buffer, int client_id)
         
         //get the value out
         temp_message.value = (unsigned int) atoi(in_buffer.substr(pos2+1, in_buffer.length()).c_str());
-        cout<<"CLIENT "<<client_id<<": length = "<<in_buffer.length()<<endl;
-        cout<<hex<<"\tcode: "<<(unsigned int)temp_message.code<<endl;
-        cout<<hex<<"\taddr: "<<temp_message.address<<endl;
-        cout<<hex<<"\tvalue: "<<temp_message.value<<endl;
+
+        #if DEBUG
+            cout<<"CLIENT "<<client_id<<": length = "<<in_buffer.length()<<endl;
+            cout<<hex<<"\tcode: "<<(unsigned int)temp_message.code<<endl;
+            cout<<hex<<"\taddr: "<<temp_message.address<<endl;
+            cout<<hex<<"\tvalue: "<<temp_message.value<<endl;
+        #endif
     }
 
     connected_clients[client_id].in_message = temp_message;
@@ -187,7 +197,6 @@ void TM_Server::Start_Server()
 
         //launch the clients thread into LaunchClient
         pthread_create(&connected_clients.back().client_thread, NULL, help_launchThread, &temp_args);
-                        //= new std::thread(&TM_Server::LaunchClient, this, &connected_clients.back());
     }
    //}}}
 }
@@ -213,7 +222,6 @@ void TM_Server::LaunchClient(int client_id)
         #endif
 
         //BLOCKING: receive and parse a single message
-        //connected_clients[client_id].in_message = TM_Server::ReceiveMessage(connected_clients[client_id].in_buffer,client_id);
         TM_Server::ReceiveMessage(connected_clients[client_id].in_buffer,client_id);
 
         //check for error(==0)
@@ -246,7 +254,7 @@ void TM_Server::LaunchClient(int client_id)
 void TM_Server::HandleRequest(int client_id)
 {
 //{{{
-    //check access cache here
+    //check access cache here differently depending on request
     if(connected_clients[client_id].in_message.code == WRITE)
     {
         WriteAttempt(client_id);
@@ -351,7 +359,7 @@ void TM_Server::WriteAttempt(int client_id)
     #else
         //{{{
         pthread_mutex_lock(&cache_lock);
-        //cache_lock.lock();
+
         //check access cache
         if(access_cache.GetMemoryOperations(connected_clients[client_id].in_message.address, READ_SET).empty()
            || access_cache.GetMemoryOperations(connected_clients[client_id].in_message.address, WRITE_SET).empty())
@@ -376,7 +384,7 @@ void TM_Server::WriteAttempt(int client_id)
             //send some abort code
             connected_clients[client_id].out_message.code = ABORT;
         }
-        //cache_lock.unlock();
+
         pthread_mutex_unlock(&cache_lock);
         //}}}
     #endif
@@ -601,284 +609,3 @@ void TM_Server::InitAttempt(int client_id)
         //}}}
 }
 
-
-
-//void TM_Server::WriteAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg)
-//{
-//    //{{{
-//    #if DEBUG
-//        cout<<client->name<<" attempting write on "<<hex<<client->in_message.address<<endl;
-//    #endif
-//
-//    #if PROMPT
-//        //{{{
-//        cout<<"\tAllow? (y/n)"<<endl;
-//        cin>>user_in;
-//        if(user_in == "y")
-//        {
-//            cout<<"\tAllowing..."<<endl;
-//            //echo the message: output = input
-//            client->out_message = client->in_message;
-//        }
-//        else
-//        {
-//            cout<<"\tAborting..."<<endl;
-//            //set out message
-//            client->out_message = client->in_message;
-//
-//            //send some abort code
-//            client->out_message.code = ABORT;
-//        }
-//        //}}}
-//    #else
-//        //{{{
-//        pthread_mutex_lock(&cache_lock);
-//        //cache_lock.lock();
-//        //check access cache
-//        if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).empty()
-//           || access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
-//        {
-//            #if DEBUG
-//                cout<<"\tAllowing..."<<endl;
-//            #endif
-//
-//            //echo the message: output = input
-//            client->out_message = client->in_message;
-//            access_cache.SetProcessorOperation(client->in_message.address, client->name, WRITE_SET);
-//        }
-//        else
-//        {
-//            #if DEBUG
-//                cout<<"\tAborting..."<<endl;
-//            #endif
-//
-//            //set out message
-//            client->out_message = client->in_message;
-//
-//            //send some abort code
-//            client->out_message.code = ABORT;
-//        }
-//        //cache_lock.unlock();
-//        pthread_mutex_unlock(&cache_lock);
-//        //}}}
-//    #endif
-//    //}}}
-//}
-//
-//void TM_Server::ReadAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg)
-//{
-//        //{{{
-//        #if DEBUG
-//            cout<<client->name<<" attempting read on "<<hex<<client->in_message.address<<endl;
-//        #endif
-//
-//        #if PROMPT
-//            //{{{
-//            cout<<"\tAllow? (y/n)"<<endl;
-//            cin>>user_in;
-//            if(user_in == "y")
-//            {
-//                cout<<"\tAllowing..."<<endl;
-//                //echo the message: output = input
-//                client->out_message = client->in_message;
-//                client->out_message.value = memory[client->out_message.address];
-//            }
-//            else
-//            {
-//                cout<<"\tAborting..."<<endl;
-//                //set out message
-//                client->out_message = client->in_message;
-//
-//                //send some abort code
-//                client->out_message.code = ABORT;
-//            }
-//            //}}}
-//        #else
-//            //{{{
-//            //cache_lock.lock();
-//            pthread_mutex_lock(&cache_lock);
-//            //check access cache
-//            if(access_cache.GetMemoryOperations(client->in_message.address, READ_SET).empty()
-//               || access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
-//            {
-//                #if DEBUG
-//                    cout<<"\tAllowing..."<<endl;
-//                #endif
-//                //echo the message: output = input
-//                client->out_message = client->in_message;
-//                client->out_message.value = memory[client->out_message.address];
-//               
-//            }
-//            else
-//            {
-//                #if DEBUG
-//                    cout<<"\tAborting..."<<endl;
-//                #endif
-//                //set out message
-//                client->out_message = client->in_message;
-//
-//                //send some abort code
-//                client->out_message.code = ABORT;
-//            }
-//            pthread_mutex_lock(&cache_lock);
-//            //cache_lock.unlock();
-//            //}}}
-//        #endif
-//        //}}}
-//}
-//
-//void TM_Server::CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg)
-//{
-//        //{{{
-//        #if DEBUG
-//            cout<<client->name<<" attempting to begin commit..."<<endl;
-//        #endif
-//
-//        #if PROMPT
-//            //{{{
-//            cout<<"\tAllow? (y/n)"<<endl;
-//            cin>>user_in;
-//            if(user_in == "y")
-//            {
-//                cout<<"\tAllowing..."<<endl;
-//                //echo the message: output = input
-//                client->out_message = client->in_message;
-//            }
-//            else
-//            {
-//                cout<<"\tAborting..."<<endl;
-//                //set out message
-//                client->out_message = client->in_message;
-//
-//                //send some abort code
-//                client->out_message.code = ABORT;
-//            }
-//            //}}}
-//        #else
-//            //{{{
-//            bool abort = false;
-//            pthread_mutex_lock(&cache_lock);
-//
-//            //first, get all addresses client is using in transaction
-//            client->client_ops = access_cache.GetProcessorOperations(client->name);
-//            for(int i = 0; (i < client->client_ops.size()) && !abort; i++)
-//            {
-//                //make sure that only this processor has sets: this logic needs to be much more complex
-//                if(client->client_ops[i] == READ_SET)
-//                {
-//                    //should check commit write set here in order to be more than just r/w lock
-//                    if(access_cache.GetMemoryOperations(i, WRITE_SET).size())
-//                    {
-//                        #if DEBUG
-//                            cout<<"i = "<<i<<", Aborted READ due to WRTIE"<<endl;
-//                        #endif
-//                        abort = true;
-//                    }
-//                }
-//                else if(client->client_ops[i] == WRITE_SET)
-//                {
-//                    //should be checking write sets; (>1) to account for itself
-//                    if(access_cache.GetMemoryOperations(i, READ_SET).size() 
-//                    || access_cache.GetMemoryOperations(i, WRITE_SET).size() > 1)
-//                    {
-//                        #if DEBUG
-//                            cout<<"Aborted WRITE due to WRTIE"<<endl;
-//                        #endif
-//                        abort = true;
-//                    }
-//                }
-//            }
-//            pthread_mutex_unlock(&cache_lock);
-//
-//            //check access cache
-//            if(!abort)
-//            {
-//                #if DEBUG
-//                     cout<<"\tAllowing..."<<endl;
-//                #endif
-//
-//                //echo the message: output = input
-//                client->out_message = client->in_message;
-//               
-//            }
-//            else
-//            {
-//                #if DEBUG
-//                    cout<<"\tAborting..."<<endl;
-//                #endif
-//
-//                //set out message
-//                client->out_message = client->in_message;
-//
-//                //send some abort code
-//                client->out_message.code = ABORT;
-//            }
-//            //}}}
-//        #endif
-//        //}}}
-//}
-//
-//void TM_Server::SyncAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg)
-//{
-//}
-//
-//void TM_Server::InitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg)
-//{
-//        //{{{
-//        #if DEBUG
-//            cout<<client->name<<" attempting init on "<<hex<<client->in_message.address<<endl;
-//        #endif
-//
-//        #if PROMPT
-//            //{{{
-//            cout<<"\tAllow? (y/n)"<<endl;
-//            cin>>user_in;
-//            if(user_in == "y")
-//            {
-//                cout<<"\tAllowing..."<<endl;
-//                //echo the message: output = input
-//                client->out_message = client->in_message;
-//                client->out_message.value = memory[client->out_message.address];
-//            }
-//            else
-//            {
-//                cout<<"\tAborting..."<<endl;
-//                //set out message
-//                client->out_message = client->in_message;
-//
-//                //send some abort code
-//                client->out_message.code = ABORT;
-//            }
-//            //}}}
-//        #else
-//            //{{{
-//            pthread_mutex_lock(&cache_lock);
-//            //cache_lock.lock();
-//            //check access cache; should check commit write set
-//            if(access_cache.GetMemoryOperations(client->in_message.address, WRITE_SET).empty())
-//            {
-//                #if DEBUG
-//                    cout<<"\tAllowing..."<<endl;
-//                #endif
-//                //echo the message: output = input
-//                client->out_message = client->in_message;
-//                client->out_message.value = memory[client->out_message.address];
-//                access_cache.SetProcessorOperation(client->in_message.address, client->name,READ_SET);
-//            }
-//            else
-//            {
-//                #if DEBUG
-//                    cout<<"\tAborting..."<<endl;
-//                #endif
-//                //set out message
-//                client->out_message = client->in_message;
-//
-//                //send some abort code
-//                client->out_message.code = ABORT;
-//            }
-//            pthread_mutex_unlock(&cache_lock);
-//            //cache_lock.unlock();
-//            //}}}
-//        #endif
-//        //}}}
-//}

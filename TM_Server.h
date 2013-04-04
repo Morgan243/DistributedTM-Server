@@ -88,7 +88,6 @@ class TM_Server
         void LaunchClient(int client_id);
 
         //determine which *Attempt method to call 
-        //void HandleRequest(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
         void HandleRequest(int client_id);
 
         //Try to do what the client requested, *Attempt methods
@@ -97,12 +96,6 @@ class TM_Server
         void CommitAttempt(int client_id);
         void SyncAttempt(int client_id);
         void InitAttempt(int client_id);
-
-//        void WriteAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
-//        void ReadAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
-//        void CommitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
-//        void SyncAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
-//        void InitAttempt(Connected_Client *client, TM_Message *in_msg, TM_Message *out_msg);
 };
 
 struct help_launchArgs
@@ -117,5 +110,4 @@ static void* help_launchThread(void *arg)
     help_launchArgs input = *((help_launchArgs *)arg);
     input.context->LaunchClient(input.id);
 }
-
 #endif
