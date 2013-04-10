@@ -10,7 +10,7 @@ using namespace std;
     //--------------------------
     //{{{
     std::vector<unsigned int> TM_Server::memory;
-    AccessCache TM_Server::access_cache(0, opt_md);
+    AccessCache TM_Server::access_cache(0, opt_md, true);
     std::vector<Connected_Client> TM_Server::connected_clients;
     std::vector<Connected_Display> TM_Server::connected_displays;
     NC_Server TM_Server::master_server;
@@ -354,7 +354,6 @@ void TM_Server::HandleRequest(int client_id)
 //}}}
 }
 
-
 void TM_Server::WriteAttempt(int client_id)
 {
     //{{{
@@ -577,4 +576,3 @@ void TM_Server::InitAttempt(int client_id)
         #endif
         //}}}
 }
-
