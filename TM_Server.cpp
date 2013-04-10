@@ -10,14 +10,15 @@ using namespace std;
     //--------------------------
     //{{{
     std::vector<unsigned int> TM_Server::memory;
-    //std::mutex TM_Server::cache_lock;
     AccessCache TM_Server::access_cache(0, opt_md);
     std::vector<Connected_Client> TM_Server::connected_clients;
+    std::vector<Connected_Display> TM_Server::connected_displays;
     NC_Server TM_Server::master_server;
     unsigned int TM_Server::port;
     string TM_Server::address;
     bool TM_Server::done;
 
+    static pthread_mutex_t display_lock;
     static pthread_mutex_t cache_lock;
     static pthread_mutex_t mem_lock;
     //}}}
@@ -236,7 +237,6 @@ void TM_Server::Start_Server()
     }
    //}}}
 }
-
 
 void TM_Server::LaunchClient(int client_id)
 {

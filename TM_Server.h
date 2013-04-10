@@ -2,6 +2,7 @@
 #include <iostream>
 #include <pthread.h>
 #include <thread>
+#include <queue>
 
 #include "../NetComm.git/NC_Server.h"
 #include "../sw_access_cache.git/AccessCache.h"
@@ -45,7 +46,34 @@ struct Connected_Client
     unsigned char out_buffer[1024];     //output buffer
     std::vector<int> client_ops;             //all operations of client
     pthread_t client_thread;
-    //std::thread *client_thread;         //thread that's dealing with client
+//}}}
+};
+
+//holds things to be sent to the display client
+struct Display_Data
+{
+//{{{
+    unsigned int node_id;
+    std::string client_name;
+    TM_Message client_request, server_response;
+    unsigned int client_commits, client_aborts;
+//}}}
+};
+
+//represents a connected display client
+struct Connected_Display
+{
+//{{{
+    bool display_done;
+    std::string name;
+    unsigned int id;
+    
+    std::queue<Display_Data> outgoing;
+    TM_Message out_message, in_message; //temporary sending/receiving messages
+    std::string in_buffer;              //raw input string
+    unsigned char out_buffer[1024];     //output buffer
+
+    pthread_t display_thread;
 //}}}
 };
 
@@ -54,6 +82,7 @@ class TM_Server
     private:
         //is the server shutting down
         static bool done;
+        static bool display_connected;
 
         //listen address and port
         static std::string address;
@@ -67,6 +96,8 @@ class TM_Server
 
         //every clients client-specific data
         static std::vector<Connected_Client> connected_clients;
+
+        static std::vector<Connected_Display> connected_displays;
 
         //shared memory; index is address
         static std::vector<unsigned int> memory;
