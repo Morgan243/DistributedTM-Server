@@ -79,6 +79,7 @@ class TM_Server
 
     public:
         TM_Server();
+        TM_Server(int memorySize);
         ~TM_Server();
 
         //start main loop, spawning threads for new clients

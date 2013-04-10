@@ -49,6 +49,31 @@ TM_Server::TM_Server()
 //}}}
 }
 
+TM_Server::TM_Server(int memorySize)
+{
+//{{{
+    //set hosting address and port
+    //TM_Server::address = "192.168.1.33";
+    TM_Server::address = "127.0.0.1";
+    TM_Server::port = 1337;
+
+    //setup socket (if not already), set adress, and bind socket
+    TM_Server::master_server.Init(true, TM_Server::address, TM_Server::port);
+    cout<<"Server initialized on "<<TM_Server::address<<":"<<TM_Server::port<<endl;
+
+    //don't stop until done is true
+    TM_Server::done = false;
+
+    pthread_mutex_init(&cache_lock, NULL);
+    pthread_mutex_init(&mem_lock, NULL);
+
+    for(int i = 0; i < memorySize; i++)
+    {
+        memory.push_back(0);
+    }
+//}}}
+}
+
 TM_Server::~TM_Server()
 {
 //{{{
@@ -97,7 +122,9 @@ void TM_Server::ReceiveMessage(string in_buffer, int client_id)
     //receive a message from the client
     int bytes_recv = TM_Server::master_server.Receive(&in_buffer, 1024, client_id);
 
-    cout<<"Bytes received in receive message: "<<bytes_recv<<endl;
+    #if DEBUG
+        cout<<"Bytes received in receive message: "<<bytes_recv<<endl;
+    #endif
 
     //check for errors
     if(bytes_recv < 0)
