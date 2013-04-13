@@ -82,7 +82,9 @@ class TM_Server
     private:
         //is the server shutting down
         static bool done;
+        static bool benchmark_enable;
         static bool display_connected;
+        static Mode conflict_mode;
 
         //listen address and port
         static std::string address;
@@ -115,6 +117,7 @@ class TM_Server
         TM_Server();
         TM_Server(int memorySize);
         TM_Server(int memorySize, std::string address, unsigned int port);
+        TM_Server(int memorySize, std::string address, unsigned int port, bool en_benchmark, Mode mode);
         ~TM_Server();
 
         //start main loop, spawning threads for new clients

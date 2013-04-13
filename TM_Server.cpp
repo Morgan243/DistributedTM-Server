@@ -10,13 +10,16 @@ using namespace std;
     //--------------------------
     //{{{
     std::vector<unsigned int> TM_Server::memory;
-    AccessCache TM_Server::access_cache(0, opt_md, true);
+    AccessCache TM_Server::access_cache;
     std::vector<Connected_Client> TM_Server::connected_clients;
     std::vector<Connected_Display> TM_Server::connected_displays;
     NC_Server TM_Server::master_server;
     unsigned int TM_Server::port;
     string TM_Server::address;
     bool TM_Server::done;
+    bool TM_Server::benchmark_enable;
+    bool TM_Server::display_connected;
+    Mode TM_Server::conflict_mode;
 
     static pthread_mutex_t display_lock;
     static pthread_mutex_t cache_lock;
@@ -28,16 +31,33 @@ using namespace std;
 TM_Server::TM_Server()
 {
     FullInit(10, "any", 1337);
+    benchmark_enable = false;
+    conflict_mode = opt_md;
+    access_cache.Init(0, conflict_mode, benchmark_enable);
 }
 
 TM_Server::TM_Server(int memorySize)
 {
     FullInit(memorySize, "any", 1337);
+    benchmark_enable = false;
+    conflict_mode = opt_md;
+    access_cache.Init(0, conflict_mode, false);
 }
 
 TM_Server::TM_Server(int memorySize, string address, unsigned int port)
 {
     FullInit(memorySize, address, port);
+    benchmark_enable = false;
+    conflict_mode = opt_md;
+    access_cache.Init(0, conflict_mode, benchmark_enable);
+}
+
+TM_Server::TM_Server(int memorySize, string address, unsigned int port, bool en_benchmark, Mode mode)
+{
+    FullInit(memorySize, address, port);
+    benchmark_enable = en_benchmark;
+    conflict_mode = mode;
+    access_cache.Init(0, conflict_mode, benchmark_enable);
 }
 
 void TM_Server::FullInit(int memorySize, string address, unsigned int port)
@@ -282,6 +302,12 @@ void TM_Server::LaunchClient(int client_id)
     #if DEBUG
         cout<<"Client Sent SHUTDOWN command, terminating thread..."<<endl;
     #endif
+
+    if(this->benchmark_enable)
+    {
+        access_cache.printParallelAccesses(client_id);
+    }
+
 //}}}
 }
 
