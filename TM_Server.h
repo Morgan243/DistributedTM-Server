@@ -17,6 +17,7 @@
 #define SYNC 0x10
 #define MUTEX 0x20
 #define INIT 0x40
+#define CONTROL 0x80
 
 #define MEMORY_SIZE 4
 #define USING_CACHE 1
@@ -39,7 +40,8 @@ struct Connected_Client
 //{{{
     bool client_done;                   //has the client disconnected
     std::string name;                   //friendly name of client
-    unsigned int id;                    //id used by network back end
+    unsigned int id;                    //index in connected client vector
+    unsigned int net_id;                    //id used by network back end
 
     TM_Message out_message, in_message; //temporary sending/receiving messages
     std::string in_buffer;              //raw input string
@@ -67,6 +69,7 @@ struct Connected_Display
     bool display_done;
     std::string name;
     unsigned int id;
+    unsigned int net_id;
     
     std::queue<Display_Data> outgoing;
     TM_Message out_message, in_message; //temporary sending/receiving messages
@@ -74,6 +77,7 @@ struct Connected_Display
     unsigned char out_buffer[1024];     //output buffer
 
     pthread_t display_thread;
+    pthread_mutex_t disp_lock;
 //}}}
 };
 
@@ -123,8 +127,11 @@ class TM_Server
         //start main loop, spawning threads for new clients
         void Start_Server();
 
-        //threads for each client fun here
+        //threads for each client run here
         void LaunchClient(int client_id);
+
+        //launch threads to parse info to display clients
+        void LaunchDisplay(int disp_id);
 
         //determine which *Attempt method to call 
         void HandleRequest(int client_id);

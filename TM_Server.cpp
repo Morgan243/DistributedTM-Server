@@ -21,9 +21,9 @@ using namespace std;
     bool TM_Server::display_connected;
     Mode TM_Server::conflict_mode;
 
-    static pthread_mutex_t display_lock;
-    static pthread_mutex_t cache_lock;
-    static pthread_mutex_t mem_lock;
+    static pthread_mutex_t display_lock;    //lock the dipslay client vector
+    static pthread_mutex_t cache_lock;      //lock the access cache
+    static pthread_mutex_t mem_lock;        //lock the memory store
     //}}}
     //--------------------------
 
@@ -74,6 +74,7 @@ void TM_Server::FullInit(int memorySize, string address, unsigned int port)
     TM_Server::done = false;
 
     //initialize the mutexes for memory and access cache
+    pthread_mutex_init(&display_lock, NULL);
     pthread_mutex_init(&cache_lock, NULL);
     pthread_mutex_init(&mem_lock, NULL);
 
@@ -213,10 +214,10 @@ void TM_Server::Start_Server()
         cout<<"Accepting new client..."<<endl;
 
         //accept a client, get its id
-        temp_client.id = TM_Server::master_server.Accept();
+        temp_client.net_id = TM_Server::master_server.Accept();
 
         //receive name of client
-        TM_Server::master_server.Receive(&temp_client.in_buffer, 1024, temp_client.id);
+        TM_Server::master_server.Receive(&temp_client.in_buffer, 1024, temp_client.net_id);
 
         cout<<">>Clent name declared as: "<<temp_client.in_buffer<<endl;
 
@@ -238,7 +239,7 @@ void TM_Server::Start_Server()
 
             //setup pthreads helper function arguments
             //temp_args.client = &connected_clients.back();
-            temp_args.id = connected_clients.size() - 1;
+            temp_client.id = temp_args.id = connected_clients.size() - 1;
             temp_args.context = this;
 
             //launch the clients thread into LaunchClient
@@ -247,6 +248,20 @@ void TM_Server::Start_Server()
         //otherwise, launch thread to pass run-time info to the display client
         else
         {
+            //populate the new display client struct
+            Connected_Display temp_display;
+                temp_display.display_done = false;
+                temp_display.id = temp_client.id;
+                temp_display.net_id = temp_client.net_id;
+                temp_display.name = temp_client.name;
+                pthread_mutex_init(&temp_display.disp_lock, NULL);
+
+            //push back the new display client
+            pthread_mutex_lock(&display_lock);
+                connected_displays.push_back(temp_display);
+            pthread_mutex_unlock(&display_lock);
+
+            this->display_connected = true;
             cout<<"Display server connected!"<<endl;
 
         }
@@ -275,7 +290,7 @@ void TM_Server::LaunchClient(int client_id)
         #endif
 
         //BLOCKING: receive and parse a single message
-        TM_Server::ReceiveMessage(connected_clients[client_id].in_buffer,client_id);
+        TM_Server::ReceiveMessage(connected_clients[client_id].in_buffer,connected_clients[client_id].net_id);
 
         //check for error(==0)
         if (!connected_clients[client_id].in_message.code)
@@ -295,7 +310,9 @@ void TM_Server::LaunchClient(int client_id)
             HandleRequest(client_id);
 
             //send message
-            TM_Server::SendMessage(connected_clients[client_id].out_message, connected_clients[client_id].out_buffer, client_id);
+            TM_Server::SendMessage(connected_clients[client_id].out_message,
+                                   connected_clients[client_id].out_buffer, 
+                                   connected_clients[client_id].net_id);
         }
     }
 
@@ -309,6 +326,15 @@ void TM_Server::LaunchClient(int client_id)
     }
 
 //}}}
+}
+
+void TM_Server::LaunchDisplay(int disp_id)
+{
+
+    while(!done)
+    {
+
+    }
 }
 
 void TM_Server::HandleRequest(int client_id)
@@ -343,13 +369,14 @@ void TM_Server::HandleRequest(int client_id)
     {
         //{{{
         #if DEBUG
-            cout<<connected_clients[client_id].name<<" Address "<<connected_clients[client_id].in_message.address<<" being WRITE committed..."<<endl;
+            cout<<connected_clients[client_id].name<<" Address "
+                <<connected_clients[client_id].in_message.address<<" being WRITE committed..."<<endl;
         #endif
 
         pthread_mutex_lock(&cache_lock);
         
-        //set the value in memory
-        memory[connected_clients[client_id].in_message.address] = connected_clients[client_id].in_message.value;
+            //set the value in memory
+            memory[connected_clients[client_id].in_message.address] = connected_clients[client_id].in_message.value;
 
         pthread_mutex_unlock(&cache_lock);
 
@@ -364,7 +391,8 @@ void TM_Server::HandleRequest(int client_id)
     {
         //{{{
         #if DEBUG
-            cout<<connected_clients[client_id].name<<" Address "<<connected_clients[client_id].in_message.address<<" being READ committed..."<<endl;
+            cout<<connected_clients[client_id].name
+                <<" Address "<<connected_clients[client_id].in_message.address<<" being READ committed..."<<endl;
         #endif
 
         connected_clients[client_id].out_message = connected_clients[client_id].in_message;
@@ -373,6 +401,16 @@ void TM_Server::HandleRequest(int client_id)
             cout<<"\tCommit finished..."<<endl;
         #endif
         //}}}
+    }
+    else if(connected_clients[client_id].in_message.code == (COMMIT | CONTROL))
+    {
+        #if DEBUG
+            cout<<"Node "<< client_id<< " has indicated that the data phase has ended for this commit"<<endl;
+            cout<<"Clearing sets in cache..."<<endl;
+        #endif
+        pthread_mutex_lock(&cache_lock);
+            TM_Server::access_cache.clearNodeSets(client_id);
+        pthread_mutex_unlock(&cache_lock);
     }
 //}}}
 }
@@ -552,58 +590,58 @@ void TM_Server::SyncAttempt(int client_id)
 
 void TM_Server::InitAttempt(int client_id)
 {
+    //{{{
+    #if DEBUG
+        cout<<connected_clients[client_id].name<<" attempting init on "<<hex<<connected_clients[client_id].in_message.address<<endl;
+    #endif
+
+    #if PROMPT
         //{{{
-        #if DEBUG
-            cout<<connected_clients[client_id].name<<" attempting init on "<<hex<<connected_clients[client_id].in_message.address<<endl;
-        #endif
+        cout<<"\tAllow? (y/n)"<<endl;
+        cin>>user_in;
+        if(user_in == "y")
+        {
+            cout<<"\tAllowing..."<<endl;
+            //echo the message: output = input
+            connected_clients[client_id].out_message = connected_clients[client_id].in_message;
+            connected_clients[client_id].out_message.value = memory[connected_clients[client_id].out_message.address];
+        }
+        else
+        {
+            cout<<"\tAborting..."<<endl;
+            //set out message
+            connected_clients[client_id].out_message = connected_clients[client_id].in_message;
 
-        #if PROMPT
-            //{{{
-            cout<<"\tAllow? (y/n)"<<endl;
-            cin>>user_in;
-            if(user_in == "y")
-            {
-                cout<<"\tAllowing..."<<endl;
-                //echo the message: output = input
-                connected_clients[client_id].out_message = connected_clients[client_id].in_message;
-                connected_clients[client_id].out_message.value = memory[connected_clients[client_id].out_message.address];
-            }
-            else
-            {
-                cout<<"\tAborting..."<<endl;
-                //set out message
-                connected_clients[client_id].out_message = connected_clients[client_id].in_message;
-
-                //send some abort code
-                connected_clients[client_id].out_message.code = ABORT;
-            }
-            //}}}
-        #else
-            //{{{
-            pthread_mutex_lock(&cache_lock);
-
-            //check access cache
-            access_cache.setRegs(client_id, READ_T, connected_clients[client_id].in_message.address);
-
-            if(access_cache.RunFSM())
-            {
-                //echo message back but with th value included
-                connected_clients[client_id].out_message = connected_clients[client_id].in_message;
-                connected_clients[client_id].out_message.value 
-                        = memory[connected_clients[client_id].out_message.address];
-            }
-            else
-            {
-                //echo back but with the abort code set
-                //set out message
-                connected_clients[client_id].out_message = connected_clients[client_id].in_message;
-
-                //send some abort code
-                connected_clients[client_id].out_message.code = ABORT;
-            }
-
-            pthread_mutex_unlock(&cache_lock);
-            //}}}
-        #endif
+            //send some abort code
+            connected_clients[client_id].out_message.code = ABORT;
+        }
         //}}}
+    #else
+        //{{{
+        pthread_mutex_lock(&cache_lock);
+
+        //check access cache
+        access_cache.setRegs(client_id, READ_T, connected_clients[client_id].in_message.address);
+
+        if(access_cache.RunFSM())
+        {
+            //echo message back but with th value included
+            connected_clients[client_id].out_message = connected_clients[client_id].in_message;
+            connected_clients[client_id].out_message.value 
+                    = memory[connected_clients[client_id].out_message.address];
+        }
+        else
+        {
+            //echo back but with the abort code set
+            //set out message
+            connected_clients[client_id].out_message = connected_clients[client_id].in_message;
+
+            //send some abort code
+            connected_clients[client_id].out_message.code = ABORT;
+        }
+
+        pthread_mutex_unlock(&cache_lock);
+        //}}}
+    #endif
+    //}}}
 }
