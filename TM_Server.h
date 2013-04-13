@@ -102,6 +102,8 @@ class TM_Server
         //shared memory; index is address
         static std::vector<unsigned int> memory;
 
+        void FullInit(int memorySizem, std::string address, unsigned int port);
+
         //parse and send out a TM_Message
         void SendMessage(TM_Message out_message, unsigned char out_buffer[], int client_id);
 
@@ -111,6 +113,7 @@ class TM_Server
     public:
         TM_Server();
         TM_Server(int memorySize);
+        TM_Server(int memorySize, std::string address, unsigned int port);
         ~TM_Server();
 
         //start main loop, spawning threads for new clients

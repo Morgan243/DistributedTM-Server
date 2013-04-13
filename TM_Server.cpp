@@ -27,38 +27,28 @@ using namespace std;
 
 TM_Server::TM_Server()
 {
-//{{{
-    //set hosting address and port
-    //TM_Server::address = "192.168.1.33";
-    TM_Server::address = "127.0.0.1";
-    TM_Server::port = 1337;
-
-    //setup socket (if not already), set adress, and bind socket
-    TM_Server::master_server.Init(true, TM_Server::address, TM_Server::port);
-    cout<<"Server initialized on "<<TM_Server::address<<":"<<TM_Server::port<<endl;
-
-    //don't stop until done is true
-    TM_Server::done = false;
-
-    pthread_mutex_init(&cache_lock, NULL);
-    pthread_mutex_init(&mem_lock, NULL);
-
-    for(int i = 0; i < MEMORY_SIZE; i++)
-    {
-        memory.push_back(0);
-    }
-//}}}
+    FullInit(10, "any", 1337);
 }
 
 TM_Server::TM_Server(int memorySize)
 {
-//{{{
+    FullInit(memorySize, "any", 1337);
+}
+
+TM_Server::TM_Server(int memorySize, string address, unsigned int port)
+{
+    FullInit(memorySize, address, port);
+}
+
+void TM_Server::FullInit(int memorySize, string address, unsigned int port)
+{
+ //{{{
     //set hosting address and port
-    //TM_Server::address = "192.168.1.33";
-    TM_Server::address = "127.0.0.1";
-    TM_Server::port = 1337;
+    TM_Server::address = address;
+    TM_Server::port = port;
 
     //setup socket (if not already), set adress, and bind socket
+    //TM_Server::master_server.Init(true, TM_Server::address, TM_Server::port);
     TM_Server::master_server.Init(true, TM_Server::address, TM_Server::port);
     cout<<"Server initialized on "<<TM_Server::address<<":"<<TM_Server::port<<endl;
 
@@ -72,7 +62,7 @@ TM_Server::TM_Server(int memorySize)
     {
         memory.push_back(0);
     }
-//}}}
+//}}}   
 }
 
 TM_Server::~TM_Server()
