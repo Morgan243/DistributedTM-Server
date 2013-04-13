@@ -102,6 +102,7 @@ class TM_Server
         //shared memory; index is address
         static std::vector<unsigned int> memory;
 
+        //Constructors use this to start everything
         void FullInit(int memorySizem, std::string address, unsigned int port);
 
         //parse and send out a TM_Message

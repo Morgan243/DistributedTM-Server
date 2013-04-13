@@ -48,13 +48,12 @@ void TM_Server::FullInit(int memorySize, string address, unsigned int port)
     TM_Server::port = port;
 
     //setup socket (if not already), set adress, and bind socket
-    //TM_Server::master_server.Init(true, TM_Server::address, TM_Server::port);
     TM_Server::master_server.Init(true, TM_Server::address, TM_Server::port);
-    cout<<"Server initialized on "<<TM_Server::address<<":"<<TM_Server::port<<endl;
 
     //don't stop until done is true
     TM_Server::done = false;
 
+    //initialize the mutexes for memory and access cache
     pthread_mutex_init(&cache_lock, NULL);
     pthread_mutex_init(&mem_lock, NULL);
 
@@ -62,6 +61,9 @@ void TM_Server::FullInit(int memorySize, string address, unsigned int port)
     {
         memory.push_back(0);
     }
+
+    cout<<"Server initialized on "<<TM_Server::address<<":"<<TM_Server::port<<endl;
+    cout<<"\t"<<memory.size()<<" memory locations available"<<endl;
 //}}}   
 }
 
@@ -196,9 +198,12 @@ void TM_Server::Start_Server()
         //receive name of client
         TM_Server::master_server.Receive(&temp_client.in_buffer, 1024, temp_client.id);
 
-        
         cout<<">>Clent name declared as: "<<temp_client.in_buffer<<endl;
+
+        //set the name
         temp_client.name = temp_client.in_buffer;
+
+        //launch compute nodes/clients into transaction handling
         if(temp_client.name != "DISPLAY")
         {
             //initial operation is zero
@@ -219,6 +224,7 @@ void TM_Server::Start_Server()
             //launch the clients thread into LaunchClient
             pthread_create(&connected_clients.back().client_thread, NULL, help_launchThread, &temp_args);
         }
+        //otherwise, launch thread to pass run-time info to the display client
         else
         {
             cout<<"Display server connected!"<<endl;
@@ -256,6 +262,7 @@ void TM_Server::LaunchClient(int client_id)
         {
             cout<<"ERROR, ignoring..."<<endl;
         }
+
         //check for shutdown code from client
         else if(connected_clients[client_id].in_message.code == 0xFF)
         {
@@ -374,8 +381,10 @@ void TM_Server::WriteAttempt(int client_id)
     #else
         //{{{
         pthread_mutex_lock(&cache_lock);
+
             //check access cache
             access_cache.setRegs(client_id, WRITE_T, connected_clients[client_id].in_message.address);
+
             if(access_cache.RunFSM())
             {
                 //echo message back 
@@ -390,6 +399,7 @@ void TM_Server::WriteAttempt(int client_id)
                 //send some abort code
                 connected_clients[client_id].out_message.code = ABORT;
             }
+
         pthread_mutex_unlock(&cache_lock);
         //}}}
     #endif
@@ -428,15 +438,16 @@ void TM_Server::ReadAttempt(int client_id)
             //{{{
             //cache_lock.lock();
             pthread_mutex_lock(&cache_lock);
+
             //check access cache
             access_cache.setRegs(client_id, READ_T, connected_clients[client_id].in_message.address);
+
             if(access_cache.RunFSM())
             {
                 //echo message back but with th value included
                 connected_clients[client_id].out_message = connected_clients[client_id].in_message;
                 connected_clients[client_id].out_message.value 
                     = memory[connected_clients[client_id].out_message.address];
-                
             }
             else
             {
@@ -447,6 +458,7 @@ void TM_Server::ReadAttempt(int client_id)
                 //send some abort code
                 connected_clients[client_id].out_message.code = ABORT;
             }
+
             pthread_mutex_unlock(&cache_lock);
             //}}}
         #endif
@@ -484,7 +496,7 @@ void TM_Server::CommitAttempt(int client_id)
             //{{{
             bool abort = false;
             pthread_mutex_lock(&cache_lock);
-            //
+            
             //check access cache
             access_cache.setRegs(client_id, COMMIT_T, connected_clients[client_id].in_message.address);
             if(access_cache.RunFSM())
@@ -501,6 +513,7 @@ void TM_Server::CommitAttempt(int client_id)
                 //send some abort code
                 connected_clients[client_id].out_message.code = ABORT;
             }
+
             pthread_mutex_unlock(&cache_lock);
             //}}}
         #endif
@@ -543,14 +556,15 @@ void TM_Server::InitAttempt(int client_id)
             //{{{
             pthread_mutex_lock(&cache_lock);
 
+            //check access cache
             access_cache.setRegs(client_id, READ_T, connected_clients[client_id].in_message.address);
+
             if(access_cache.RunFSM())
             {
                 //echo message back but with th value included
                 connected_clients[client_id].out_message = connected_clients[client_id].in_message;
                 connected_clients[client_id].out_message.value 
                         = memory[connected_clients[client_id].out_message.address];
-                
             }
             else
             {
@@ -561,6 +575,7 @@ void TM_Server::InitAttempt(int client_id)
                 //send some abort code
                 connected_clients[client_id].out_message.code = ABORT;
             }
+
             pthread_mutex_unlock(&cache_lock);
             //}}}
         #endif

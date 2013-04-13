@@ -13,6 +13,7 @@ bool HandleArgs(int argc, char *argv[], inputArgs &input);
 
 int main (int argc, char *argv[])
 {
+//{{{
     inputArgs cmdInput;
         cmdInput.memSize = 10;      //set default memory size
 
@@ -24,10 +25,12 @@ int main (int argc, char *argv[])
     server.Start_Server();
    
     return 0;
+//}}}
 }
 
 bool HandleArgs(int argc, char *argv[], inputArgs &input)
 {
+//{{{
     for(int i = 0; i < argc; i++)
     {
        if(strcmp(argv[i], "-h") == 0)
@@ -47,4 +50,5 @@ bool HandleArgs(int argc, char *argv[], inputArgs &input)
             input.port = atoi(argv[i+1]);
     }
     return false;
+//}}}
 }
