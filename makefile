@@ -16,7 +16,7 @@ ppc: all_ppc
 
 all_x86 : main_x86.o TM_Server_x86.o  $(SERVER_PATH)NC_Server.o $(SERVER_PATH)/NetComm.o $(CACHE_PATH)/RWStore.o $(CACHE_PATH)/AccessCache.o
 	$(COMP) main.o TM_Server.o $(SERVER_PATH)NC_Server.o $(SERVER_PATH)/NetComm.o \
-		$(CACHE_PATH)/RWStore.o $(CACHE_PATH)/AccessCache.o $(FLAGS) -o $(OUT)
+		$(CACHE_PATH)/RWStore.o $(CACHE_PATH)/AccessCache.o $(FLAGS) -o $(OUT)_x86
 
 main_x86.o : main.cpp 
 	$(COMP) -c main.cpp $(FLAGS)
@@ -27,7 +27,7 @@ TM_Server_x86.o : TM_Server.cpp TM_Server.h
 
 all_ppc : main_ppc.o TM_Server_ppc.o  $(SERVER_PATH)NC_Server.o $(SERVER_PATH)/NetComm.o $(CACHE_PATH)/RWStore.o $(CACHE_PATH)/AccessCache.o
 	$(CROSS_PPC) main.o TM_Server.o $(SERVER_PATH)NC_Server.o $(SERVER_PATH)/NetComm.o \
-		$(CACHE_PATH)/RWStore.o $(CACHE_PATH)/AccessCache.o $(FLAGS) -o $(OUT)
+		$(CACHE_PATH)/RWStore.o $(CACHE_PATH)/AccessCache.o $(FLAGS) -o $(OUT)_ppc
 
 main_ppc.o : main.cpp 
 	$(CROSS_PPC) -c main.cpp $(FLAGS)
@@ -36,4 +36,4 @@ TM_Server_ppc.o : TM_Server.cpp TM_Server.h
 	$(CROSS_PPC) -c TM_Server.cpp TM_Server.h $(FLAGS)
 
 clean :
-	rm $(OUT) *.o *.gch
+	rm $(OUT)_x86 $(OUT)_ppc *.o *.gch
