@@ -6,7 +6,7 @@ SERVER_PATH=../NetComm.git/
 CACHE_PATH=../sw_access_cache.git/
 
 #we'll want to try and use C11 threads if the cross compiler can do it
-FLAGS=-lpthread --std=c++11 -ggdb
+FLAGS=-lpthread -ggdb
 OUT=test
 
 x86: all_x86
