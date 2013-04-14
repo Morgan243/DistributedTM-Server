@@ -373,12 +373,12 @@ void TM_Server::HandleRequest(int client_id)
                 <<connected_clients[client_id].in_message.address<<" being WRITE committed..."<<endl;
         #endif
 
-        pthread_mutex_lock(&cache_lock);
+        pthread_mutex_lock(&mem_lock);
         
             //set the value in memory
             memory[connected_clients[client_id].in_message.address] = connected_clients[client_id].in_message.value;
 
-        pthread_mutex_unlock(&cache_lock);
+        pthread_mutex_unlock(&mem_lock);
 
         connected_clients[client_id].out_message = connected_clients[client_id].in_message;
 
@@ -395,7 +395,7 @@ void TM_Server::HandleRequest(int client_id)
                 <<" Address "<<connected_clients[client_id].in_message.address<<" being READ committed..."<<endl;
         #endif
 
-        connected_clients[client_id].out_message = connected_clients[client_id].in_message;
+            connected_clients[client_id].out_message = connected_clients[client_id].in_message;
 
         #if DEBUG
             cout<<"\tCommit finished..."<<endl;
@@ -510,8 +510,11 @@ void TM_Server::ReadAttempt(int client_id)
             {
                 //echo message back but with th value included
                 connected_clients[client_id].out_message = connected_clients[client_id].in_message;
-                connected_clients[client_id].out_message.value 
-                    = memory[connected_clients[client_id].out_message.address];
+
+                pthread_mutex_lock(&mem_lock);
+                    connected_clients[client_id].out_message.value 
+                        = memory[connected_clients[client_id].out_message.address];
+                pthread_mutex_unlock(&mem_lock);
             }
             else
             {
@@ -627,8 +630,11 @@ void TM_Server::InitAttempt(int client_id)
         {
             //echo message back but with th value included
             connected_clients[client_id].out_message = connected_clients[client_id].in_message;
-            connected_clients[client_id].out_message.value 
-                    = memory[connected_clients[client_id].out_message.address];
+
+            pthread_mutex_lock(&mem_lock);
+                connected_clients[client_id].out_message.value 
+                        = memory[connected_clients[client_id].out_message.address];
+            pthread_mutex_unlock(&mem_lock);
         }
         else
         {
