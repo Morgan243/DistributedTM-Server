@@ -57,6 +57,8 @@ struct Display_Data
 //{{{
     unsigned int node_id;
     std::string client_name;
+    unsigned int address;
+    unsigned char code;
     TM_Message client_request, server_response;
     unsigned int client_commits, client_aborts;
 //}}}
@@ -148,12 +150,23 @@ struct help_launchArgs
 {
     TM_Server *context;
     int id;
-    //Connected_Client *client;
 };
 
 static void* help_launchThread(void *arg)
 {
     help_launchArgs input = *((help_launchArgs *)arg);
     input.context->LaunchClient(input.id);
+}
+
+struct help_DisplayLaunchArgs
+{
+    TM_Server *context;
+    int id;
+};
+
+static void* help_launchDisplay(void *arg)
+{
+    help_DisplayLaunchArgs input = *((help_DisplayLaunchArgs *) arg);
+    input.context->LaunchDisplay(input.id);
 }
 #endif

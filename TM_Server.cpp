@@ -248,6 +248,8 @@ void TM_Server::Start_Server()
         //otherwise, launch thread to pass run-time info to the display client
         else
         {
+            help_DisplayLaunchArgs disp_args;
+
             //populate the new display client struct
             Connected_Display temp_display;
                 temp_display.display_done = false;
@@ -256,9 +258,13 @@ void TM_Server::Start_Server()
                 temp_display.name = temp_client.name;
                 pthread_mutex_init(&temp_display.disp_lock, NULL);
 
-            //push back the new display client
+            disp_args.id = temp_display.id;
+            disp_args.context = this;
+
+            //push back the new display client and launch
             pthread_mutex_lock(&display_lock);
                 connected_displays.push_back(temp_display);
+                pthread_create(&connected_displays.back().display_thread, NULL, help_launchDisplay, &disp_args);
             pthread_mutex_unlock(&display_lock);
 
             this->display_connected = true;
@@ -330,10 +336,39 @@ void TM_Server::LaunchClient(int client_id)
 
 void TM_Server::LaunchDisplay(int disp_id)
 {
+    int queue_size = 0, send_size = 0;
+    Display_Data temp_disp_data;
+
+    cout<<"Server DISPLAY thread launched..."<<endl;
 
     while(!done)
     {
+        //check id there is new data to send
+        pthread_mutex_lock(&display_lock);
+            queue_size = connected_displays[disp_id].outgoing.size();
+        pthread_mutex_unlock(&display_lock);
 
+        if(queue_size > 0)
+        {
+            //get the front set of data to send out
+            pthread_mutex_lock(&display_lock);
+                temp_disp_data = connected_displays[disp_id].outgoing.front();
+                connected_displays[disp_id].outgoing.pop();
+            pthread_mutex_unlock(&display_lock);
+
+            //zero out the buffer
+            bzero(connected_displays[disp_id].out_buffer, sizeof(connected_displays[disp_id].out_buffer));
+
+            //agreed ordering: id:address:code
+            send_size = 
+                sprintf((char *)connected_displays[disp_id].out_buffer, "[%u:%u:%c]",
+                                temp_disp_data.node_id, temp_disp_data.address, temp_disp_data.code);
+
+            TM_Server::master_server.Send(connected_displays[disp_id].out_buffer, send_size + 1, connected_displays[disp_id].net_id);
+        }
+
+        //sleepy time a bit
+        usleep(500);
     }
 }
 
