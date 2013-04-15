@@ -371,7 +371,7 @@ void TM_Server::LaunchDisplay(int disp_id)
         }
 
         //sleepy time a bit
-        usleep(500);
+        usleep(100000);
     }
 //}}}
 }
@@ -417,6 +417,8 @@ void TM_Server::HandleRequest(int client_id)
             //set the value in memory
             memory[connected_clients[client_id].in_message.address] = connected_clients[client_id].in_message.value;
 
+            if(this->display_connected)
+                EnqueueCommit(connected_clients[client_id].in_message.address, client_id);
         pthread_mutex_unlock(&mem_lock);
 
         connected_clients[client_id].out_message = connected_clients[client_id].in_message;
@@ -435,6 +437,9 @@ void TM_Server::HandleRequest(int client_id)
         #endif
 
             connected_clients[client_id].out_message = connected_clients[client_id].in_message;
+
+            if(this->display_connected)
+                EnqueueCommit(connected_clients[client_id].in_message.address, client_id);
 
         #if DEBUG
             cout<<"\tCommit finished..."<<endl;
@@ -616,8 +621,6 @@ void TM_Server::CommitAttempt(int client_id)
                 //echo message
                 connected_clients[client_id].out_message = connected_clients[client_id].in_message;
 
-                if(this->display_connected)
-                    EnqueueCommit(connected_clients[client_id].in_message.address, client_id);
 
             }
             else
@@ -715,7 +718,7 @@ void TM_Server::EnqueueAbort(unsigned int address, int node_id)
     Display_Data temp_disp_data;
         temp_disp_data.address = address;
         temp_disp_data.node_id = node_id;
-        temp_disp_data.code = ABORT;
+        temp_disp_data.code = '8';
 
     pthread_mutex_lock(&display_lock);
         connected_displays[0].outgoing.push(temp_disp_data);
@@ -729,7 +732,9 @@ void TM_Server::EnqueueCommit(unsigned int address, int node_id)
     Display_Data temp_disp_data;
         temp_disp_data.address = address;
         temp_disp_data.node_id = node_id;
-        temp_disp_data.code = COMMIT;
+        temp_disp_data.code = '4';
+
+        cout<<"ENqueueing: id = "<< node_id<<" , address = "<<address<<" , code = 4"<<endl;
 
     pthread_mutex_lock(&display_lock);
         connected_displays[0].outgoing.push(temp_disp_data);
