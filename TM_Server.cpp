@@ -120,7 +120,7 @@ void TM_Server::SendMessage(TM_Message out_message, unsigned char out_buffer[], 
            = sprintf((char*)out_buffer, "%c:%u:%u", out_message.code, out_message.address,out_message.value);
 
         //send out the formatted string
-        TM_Server::master_server.Send(out_buffer, size + 1, client_id);
+        TM_Server::master_server.Send(out_buffer, size + 1, connected_clients[client_id].net_id);
 //}}}
 }
 
@@ -134,7 +134,7 @@ void TM_Server::ReceiveMessage(string in_buffer, int client_id)
     in_buffer.clear();
 
     //receive a message from the client
-    int bytes_recv = TM_Server::master_server.Receive(&in_buffer, 1024, client_id);
+    int bytes_recv = TM_Server::master_server.Receive(&in_buffer, 1024, connected_clients[client_id].net_id);
 
     #if DEBUG
         cout<<"Bytes received in receive message: "<<bytes_recv<<endl;
@@ -204,6 +204,7 @@ void TM_Server::Start_Server()
     //loop continues until end
     while(!done)
     {
+        help_DisplayLaunchArgs disp_args;
         Connected_Client temp_client;
         help_launchArgs temp_args;
 
@@ -234,7 +235,6 @@ void TM_Server::Start_Server()
             //store the client in vector
             connected_clients.push_back(temp_client);
 
-
             cout<<"Launching client thread..."<<endl;
 
             //setup pthreads helper function arguments
@@ -248,22 +248,22 @@ void TM_Server::Start_Server()
         //otherwise, launch thread to pass run-time info to the display client
         else
         {
-            help_DisplayLaunchArgs disp_args;
 
             //populate the new display client struct
             Connected_Display temp_display;
                 temp_display.display_done = false;
-                temp_display.id = temp_client.id;
                 temp_display.net_id = temp_client.net_id;
                 temp_display.name = temp_client.name;
                 pthread_mutex_init(&temp_display.disp_lock, NULL);
 
-            disp_args.id = temp_display.id;
             disp_args.context = this;
 
             //push back the new display client and launch
             pthread_mutex_lock(&display_lock);
                 connected_displays.push_back(temp_display);
+
+                disp_args.id = connected_displays.back().id = connected_displays.size() - 1;
+                
                 pthread_create(&connected_displays.back().display_thread, NULL, help_launchDisplay, &disp_args);
             pthread_mutex_unlock(&display_lock);
 
@@ -296,7 +296,7 @@ void TM_Server::LaunchClient(int client_id)
         #endif
 
         //BLOCKING: receive and parse a single message
-        TM_Server::ReceiveMessage(connected_clients[client_id].in_buffer,connected_clients[client_id].net_id);
+        TM_Server::ReceiveMessage(connected_clients[client_id].in_buffer,client_id);
 
         //check for error(==0)
         if (!connected_clients[client_id].in_message.code)
@@ -318,7 +318,7 @@ void TM_Server::LaunchClient(int client_id)
             //send message
             TM_Server::SendMessage(connected_clients[client_id].out_message,
                                    connected_clients[client_id].out_buffer, 
-                                   connected_clients[client_id].net_id);
+                                   client_id);
         }
     }
 
@@ -336,7 +336,9 @@ void TM_Server::LaunchClient(int client_id)
 
 void TM_Server::LaunchDisplay(int disp_id)
 {
+//{{{
     int queue_size = 0, send_size = 0;
+    bool empty = true;
     Display_Data temp_disp_data;
 
     cout<<"Server DISPLAY thread launched..."<<endl;
@@ -346,9 +348,10 @@ void TM_Server::LaunchDisplay(int disp_id)
         //check id there is new data to send
         pthread_mutex_lock(&display_lock);
             queue_size = connected_displays[disp_id].outgoing.size();
+            empty = connected_displays[disp_id].outgoing.empty();
         pthread_mutex_unlock(&display_lock);
 
-        if(queue_size > 0)
+        if(!empty)
         {
             //get the front set of data to send out
             pthread_mutex_lock(&display_lock);
@@ -370,6 +373,7 @@ void TM_Server::LaunchDisplay(int disp_id)
         //sleepy time a bit
         usleep(500);
     }
+//}}}
 }
 
 void TM_Server::HandleRequest(int client_id)
@@ -497,6 +501,9 @@ void TM_Server::WriteAttempt(int client_id)
 
                 //send some abort code
                 connected_clients[client_id].out_message.code = ABORT;
+
+                if(this->display_connected)
+                    EnqueueAbort(connected_clients[client_id].in_message.address, client_id);
             }
 
         pthread_mutex_unlock(&cache_lock);
@@ -559,6 +566,9 @@ void TM_Server::ReadAttempt(int client_id)
 
                 //send some abort code
                 connected_clients[client_id].out_message.code = ABORT;
+
+                if(this->display_connected)
+                    EnqueueAbort(connected_clients[client_id].in_message.address, client_id);
             }
 
             pthread_mutex_unlock(&cache_lock);
@@ -605,6 +615,10 @@ void TM_Server::CommitAttempt(int client_id)
             {
                 //echo message
                 connected_clients[client_id].out_message = connected_clients[client_id].in_message;
+
+                if(this->display_connected)
+                    EnqueueCommit(connected_clients[client_id].in_message.address, client_id);
+
             }
             else
             {
@@ -614,6 +628,10 @@ void TM_Server::CommitAttempt(int client_id)
 
                 //send some abort code
                 connected_clients[client_id].out_message.code = ABORT;
+
+                if(this->display_connected)
+                    EnqueueAbort(connected_clients[client_id].in_message.address, client_id);
+
             }
 
             pthread_mutex_unlock(&cache_lock);
@@ -679,10 +697,42 @@ void TM_Server::InitAttempt(int client_id)
 
             //send some abort code
             connected_clients[client_id].out_message.code = ABORT;
+
+            if(this->display_connected)
+                EnqueueAbort(connected_clients[client_id].in_message.address, client_id);
+
         }
 
         pthread_mutex_unlock(&cache_lock);
         //}}}
     #endif
     //}}}
+}
+
+void TM_Server::EnqueueAbort(unsigned int address, int node_id)
+{
+//{{{
+    Display_Data temp_disp_data;
+        temp_disp_data.address = address;
+        temp_disp_data.node_id = node_id;
+        temp_disp_data.code = ABORT;
+
+    pthread_mutex_lock(&display_lock);
+        connected_displays[0].outgoing.push(temp_disp_data);
+    pthread_mutex_unlock(&display_lock);
+//}}}
+}
+
+void TM_Server::EnqueueCommit(unsigned int address, int node_id)
+{
+//{{{
+    Display_Data temp_disp_data;
+        temp_disp_data.address = address;
+        temp_disp_data.node_id = node_id;
+        temp_disp_data.code = COMMIT;
+
+    pthread_mutex_lock(&display_lock);
+        connected_displays[0].outgoing.push(temp_disp_data);
+    pthread_mutex_unlock(&display_lock);
+//}}}
 }

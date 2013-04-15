@@ -59,8 +59,6 @@ struct Display_Data
     std::string client_name;
     unsigned int address;
     unsigned char code;
-    TM_Message client_request, server_response;
-    unsigned int client_commits, client_aborts;
 //}}}
 };
 
@@ -118,6 +116,9 @@ class TM_Server
 
         //receive data and put together a TM_Message
         void ReceiveMessage(std::string in_buffer, int client_id);
+
+        void EnqueueAbort(unsigned int address, int node_id);
+        void EnqueueCommit(unsigned int address, int node_id);
 
     public:
         TM_Server();
