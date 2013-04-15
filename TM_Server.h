@@ -90,6 +90,8 @@ class TM_Server
         static bool display_connected;
         static Mode conflict_mode;
 
+        int display_delay;
+
         //listen address and port
         static std::string address;
         static unsigned int port;
@@ -119,12 +121,15 @@ class TM_Server
 
         void EnqueueAbort(unsigned int address, int node_id);
         void EnqueueCommit(unsigned int address, int node_id);
+        void EnqueueWrite(unsigned int address, int node_id);
+        void EnqueueRead(unsigned int address, int node_id);
 
     public:
         TM_Server();
         TM_Server(int memorySize);
         TM_Server(int memorySize, std::string address, unsigned int port);
         TM_Server(int memorySize, std::string address, unsigned int port, bool en_benchmark, Mode mode);
+        TM_Server(int memorySize, std::string address, unsigned int port, bool en_benchmark, Mode mode, int disp_sleep);
         ~TM_Server();
 
         //start main loop, spawning threads for new clients

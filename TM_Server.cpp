@@ -33,6 +33,7 @@ TM_Server::TM_Server()
     FullInit(10, "any", 1337);
     benchmark_enable = false;
     conflict_mode = opt_md;
+    display_delay = 500;
     access_cache.Init(0, conflict_mode, benchmark_enable);
 }
 
@@ -41,6 +42,7 @@ TM_Server::TM_Server(int memorySize)
     FullInit(memorySize, "any", 1337);
     benchmark_enable = false;
     conflict_mode = opt_md;
+    display_delay = 500;
     access_cache.Init(0, conflict_mode, false);
 }
 
@@ -49,6 +51,7 @@ TM_Server::TM_Server(int memorySize, string address, unsigned int port)
     FullInit(memorySize, address, port);
     benchmark_enable = false;
     conflict_mode = opt_md;
+    display_delay = 500;
     access_cache.Init(0, conflict_mode, benchmark_enable);
 }
 
@@ -57,6 +60,16 @@ TM_Server::TM_Server(int memorySize, string address, unsigned int port, bool en_
     FullInit(memorySize, address, port);
     benchmark_enable = en_benchmark;
     conflict_mode = mode;
+    display_delay = 500;
+    access_cache.Init(0, conflict_mode, benchmark_enable);
+}
+
+TM_Server::TM_Server(int memorySize, string address, unsigned int port, bool en_benchmark, Mode mode, int disp_sleep)
+{
+    FullInit(memorySize, address, port);
+    benchmark_enable = en_benchmark;
+    conflict_mode = mode;
+    display_delay = disp_sleep;
     access_cache.Init(0, conflict_mode, benchmark_enable);
 }
 
@@ -371,7 +384,7 @@ void TM_Server::LaunchDisplay(int disp_id)
         }
 
         //sleepy time a bit
-        usleep(100000);
+        usleep(display_delay);
     }
 //}}}
 }
@@ -418,7 +431,12 @@ void TM_Server::HandleRequest(int client_id)
             memory[connected_clients[client_id].in_message.address] = connected_clients[client_id].in_message.value;
 
             if(this->display_connected)
+                EnqueueWrite(connected_clients[client_id].in_message.address, client_id);
+
+
+            if(this->display_connected)
                 EnqueueCommit(connected_clients[client_id].in_message.address, client_id);
+
         pthread_mutex_unlock(&mem_lock);
 
         connected_clients[client_id].out_message = connected_clients[client_id].in_message;
@@ -439,6 +457,9 @@ void TM_Server::HandleRequest(int client_id)
             connected_clients[client_id].out_message = connected_clients[client_id].in_message;
 
             if(this->display_connected)
+                EnqueueRead(connected_clients[client_id].in_message.address, client_id);
+
+            if(this->display_connected)
                 EnqueueCommit(connected_clients[client_id].in_message.address, client_id);
 
         #if DEBUG
@@ -452,6 +473,7 @@ void TM_Server::HandleRequest(int client_id)
             cout<<"Node "<< client_id<< " has indicated that the data phase has ended for this commit"<<endl;
             cout<<"Clearing sets in cache..."<<endl;
         #endif
+
         pthread_mutex_lock(&cache_lock);
             TM_Server::access_cache.clearNodeSets(client_id);
         pthread_mutex_unlock(&cache_lock);
@@ -620,8 +642,6 @@ void TM_Server::CommitAttempt(int client_id)
             {
                 //echo message
                 connected_clients[client_id].out_message = connected_clients[client_id].in_message;
-
-
             }
             else
             {
@@ -735,6 +755,36 @@ void TM_Server::EnqueueCommit(unsigned int address, int node_id)
         temp_disp_data.code = '4';
 
         cout<<"ENqueueing: id = "<< node_id<<" , address = "<<address<<" , code = 4"<<endl;
+
+    pthread_mutex_lock(&display_lock);
+        connected_displays[0].outgoing.push(temp_disp_data);
+    pthread_mutex_unlock(&display_lock);
+//}}}
+}
+
+void TM_Server::EnqueueWrite(unsigned int address, int node_id)
+{
+//{{{
+    Display_Data temp_disp_data;
+        temp_disp_data.address = address;
+        temp_disp_data.node_id = node_id;
+        temp_disp_data.code = '2';
+
+
+    pthread_mutex_lock(&display_lock);
+        connected_displays[0].outgoing.push(temp_disp_data);
+    pthread_mutex_unlock(&display_lock);
+//}}}
+}
+
+void TM_Server::EnqueueRead(unsigned int address, int node_id)
+{
+//{{{
+    Display_Data temp_disp_data;
+        temp_disp_data.address = address;
+        temp_disp_data.node_id = node_id;
+        temp_disp_data.code = '1';
+
 
     pthread_mutex_lock(&display_lock);
         connected_displays[0].outgoing.push(temp_disp_data);

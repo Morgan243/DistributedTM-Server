@@ -5,6 +5,7 @@ using namespace std;
 struct inputArgs
 {
     int memSize;
+    int display_parse_delay;
     unsigned int port;
     string addr;
     bool benchmark;
@@ -22,6 +23,7 @@ int main (int argc, char *argv[])
         cmdInput.port = 1337;
         cmdInput.benchmark = false;
         cmdInput.lock_mode = opt_md;
+        cmdInput.display_parse_delay = 5000;
 
     if(HandleArgs(argc, argv, cmdInput))
         return 0;
@@ -47,6 +49,7 @@ bool HandleArgs(int argc, char *argv[], inputArgs &input)
             cout<<"-m\t\tNumber of memory locations, indexed from 0"<<endl;
             cout<<"-b\t\tEnable critical section parallelism benchmarking"<<endl;
             cout<<"-cm\t\tConflict detection method: \"mutex\", \"rw\" (read/write), \"opt\" (optimistic)"<<endl;
+            cout<<"-s\t\tMicroseconds between messages to display clients"<<endl;
 
             return true;
         }
@@ -59,6 +62,8 @@ bool HandleArgs(int argc, char *argv[], inputArgs &input)
             input.port = atoi(argv[i+1]);
         if(strcmp(argv[i], "-b") == 0)
             input.benchmark = true;
+        if(strcmp(argv[i], "-b") == 0)
+            input.display_parse_delay = atoi(argv[i+1]);
         if(strcmp(argv[i], "-cm") == 0)
         {
             if(strcmp(argv[i+1], "mutex") == 0)
