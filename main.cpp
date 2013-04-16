@@ -62,7 +62,7 @@ bool HandleArgs(int argc, char *argv[], inputArgs &input)
             input.port = atoi(argv[i+1]);
         if(strcmp(argv[i], "-b") == 0)
             input.benchmark = true;
-        if(strcmp(argv[i], "-b") == 0)
+        if(strcmp(argv[i], "-s") == 0)
             input.display_parse_delay = atoi(argv[i+1]);
         if(strcmp(argv[i], "-cm") == 0)
         {
