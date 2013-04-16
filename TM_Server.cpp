@@ -101,6 +101,7 @@ void TM_Server::FullInit(int memorySize, string address, unsigned int port)
     pthread_mutex_init(&cache_lock, NULL);
     pthread_mutex_init(&mem_lock, NULL);
 
+    //create memory locations
     for(int i = 0; i < memorySize; i++)
     {
         memory.push_back(0);
@@ -124,10 +125,19 @@ TM_Server::~TM_Server()
         pthread_join(connected_clients[i].client_thread, NULL);
     }
 
+    //properly destroy pthread mutexes
+    if(pthread_mutex_destroy(&display_lock))
+        printf("Error destroying display mutex!\n");
     if(pthread_mutex_destroy(&cache_lock))
         printf("Error destorying cache mutex!\n");
     if(pthread_mutex_destroy(&mem_lock))
         printf("Error destorying cache mutex!\n");
+
+    for(int i = 0; i < connected_displays.size(); i++)
+    {
+        if(pthread_mutex_destroy(&connected_displays[i].disp_lock))
+            printf("Error destroying display %d's display lock!\n", i);
+    }
 
 //}}}
 }
@@ -142,7 +152,7 @@ void TM_Server::SendMessage(TM_Message out_message, unsigned char out_buffer[], 
        int size 
            = sprintf((char*)out_buffer, "%c:%u:%u", out_message.code, out_message.address,out_message.value);
 
-        //send out the formatted string
+        //send out the formatted string (size + 1 for null terminator)
         TM_Server::master_server.Send(out_buffer, size + 1, connected_clients[client_id].net_id);
 //}}}
 }
@@ -750,9 +760,9 @@ void TM_Server::EnqueueAbort(unsigned int address, int node_id)
         temp_disp_data.node_id = node_id;
         temp_disp_data.code = '8';
 
-    pthread_mutex_lock(&display_lock);
+    pthread_mutex_lock(&connected_displays.back().disp_lock);
         connected_displays.back().outgoing.push(temp_disp_data);
-    pthread_mutex_unlock(&display_lock);
+    pthread_mutex_unlock(&connected_displays.back().disp_lock);
 //}}}
 }
 
@@ -764,9 +774,9 @@ void TM_Server::EnqueueCommit(unsigned int address, int node_id)
         temp_disp_data.node_id = node_id;
         temp_disp_data.code = '4';
 
-    pthread_mutex_lock(&display_lock);
+    pthread_mutex_lock(&connected_displays.back().disp_lock);
         connected_displays.back().outgoing.push(temp_disp_data);
-    pthread_mutex_unlock(&display_lock);
+    pthread_mutex_unlock(&connected_displays.back().disp_lock);
 //}}}
 }
 
@@ -778,9 +788,9 @@ void TM_Server::EnqueueWrite(unsigned int address, int node_id)
         temp_disp_data.node_id = node_id;
         temp_disp_data.code = '2';
 
-    pthread_mutex_lock(&display_lock);
+    pthread_mutex_lock(&connected_displays.back().disp_lock);
         connected_displays.back().outgoing.push(temp_disp_data);
-    pthread_mutex_unlock(&display_lock);
+    pthread_mutex_unlock(&connected_displays.back().disp_lock);
 //}}}
 }
 
@@ -792,8 +802,8 @@ void TM_Server::EnqueueRead(unsigned int address, int node_id)
         temp_disp_data.node_id = node_id;
         temp_disp_data.code = '1';
 
-    pthread_mutex_lock(&display_lock);
+    pthread_mutex_lock(&connected_displays.back().disp_lock);
         connected_displays.back().outgoing.push(temp_disp_data);
-    pthread_mutex_unlock(&display_lock);
+    pthread_mutex_unlock(&connected_displays.back().disp_lock);
 //}}}
 }

@@ -84,13 +84,12 @@ struct Connected_Display
 class TM_Server
 {
     private:
-        //is the server shutting down
-        static bool done;
-        static bool benchmark_enable;
-        static bool display_connected;
-        static Mode conflict_mode;
+        static bool done;                   //is the server shutting down
+        static bool benchmark_enable;       //is access cache tracking parallel accesses
+        static bool display_connected;      //is there a display client connected to the server
+        static Mode conflict_mode;          //Mutex Style, RW Mutex, or Optimistic
 
-        int display_delay;
+        int display_delay;                  //How long to sleep display client handle thread between sends
 
         //listen address and port
         static std::string address;
@@ -119,6 +118,7 @@ class TM_Server
         //receive data and put together a TM_Message
         void ReceiveMessage(std::string in_buffer, int client_id);
 
+        //Lock and enqueue messages for the display
         void EnqueueAbort(unsigned int address, int node_id);
         void EnqueueCommit(unsigned int address, int node_id);
         void EnqueueWrite(unsigned int address, int node_id);
@@ -152,24 +152,28 @@ class TM_Server
         void InitAttempt(int client_id);
 };
 
+//arguments for pthread client launch helper
 struct help_launchArgs
 {
     TM_Server *context;
     int id;
 };
 
+//call launch client (used with pthreads)
 static void* help_launchThread(void *arg)
 {
     help_launchArgs input = *((help_launchArgs *)arg);
     input.context->LaunchClient(input.id);
 }
 
+//arguments struct for pthread display client launch helper
 struct help_DisplayLaunchArgs
 {
     TM_Server *context;
     int id;
 };
 
+//call launch display (used with pthreads)
 static void* help_launchDisplay(void *arg)
 {
     help_DisplayLaunchArgs input = *((help_DisplayLaunchArgs *) arg);
