@@ -24,6 +24,8 @@
 #define DEBUG 0
 #define PROMPT 0
 
+enum StoreType {integer, float_real, double_real};
+
 //holds data that goes between client and server
 struct TM_Message
 {
@@ -31,6 +33,7 @@ struct TM_Message
     unsigned char code;         //operation (read, write, commit, etc.)
     unsigned int address;       //address of TM
     unsigned int value;         //value of TM, not always used
+    float value_fl;
 //}}}
 };
 
@@ -59,6 +62,7 @@ struct Display_Data
     std::string client_name;
     unsigned int address;
     unsigned char code;
+    float value_fl;
 //}}}
 };
 
@@ -87,9 +91,13 @@ class TM_Server
         static bool done;                   //is the server shutting down
         static bool benchmark_enable;       //is access cache tracking parallel accesses
         static bool display_connected;      //is there a display client connected to the server
+        static bool grapher_connected;      //is there a display client connected to the server
         static Mode conflict_mode;          //Mutex Style, RW Mutex, or Optimistic
+        static StoreType store_type;
 
         int display_delay;                  //How long to sleep display client handle thread between sends
+        int display_std_id, grapher_id;
+
 
         //listen address and port
         static std::string address;
@@ -108,6 +116,7 @@ class TM_Server
 
         //shared memory; index is address
         static std::vector<unsigned int> memory;
+        static std::vector<float> memory_float;
 
         //Constructors use this to start everything
         void FullInit(int memorySizem, std::string address, unsigned int port);
@@ -124,12 +133,23 @@ class TM_Server
         void EnqueueWrite(unsigned int address, int node_id);
         void EnqueueRead(unsigned int address, int node_id);
 
+        void EnqueueValue(unsigned int address, int node_id, float value);
+
     public:
         TM_Server();
         TM_Server(int memorySize);
         TM_Server(int memorySize, std::string address, unsigned int port);
         TM_Server(int memorySize, std::string address, unsigned int port, bool en_benchmark, Mode mode);
         TM_Server(int memorySize, std::string address, unsigned int port, bool en_benchmark, Mode mode, int disp_sleep);
+
+        TM_Server(int memorySize, 
+                    std::string address, 
+                    unsigned int port, 
+                    bool en_benchmark, 
+                    Mode mode, 
+                    int disp_sleep,
+                    StoreType store_type);
+
         ~TM_Server();
 
         //start main loop, spawning threads for new clients
@@ -140,6 +160,9 @@ class TM_Server
 
         //launch threads to parse info to display clients
         void LaunchDisplay(int disp_id);
+
+        //launcher for scatter plot grpaher thread
+        void LaunchGraphDisplay(int disp_id);
 
         //determine which *Attempt method to call 
         void HandleRequest(int client_id);
@@ -178,5 +201,12 @@ static void* help_launchDisplay(void *arg)
 {
     help_DisplayLaunchArgs input = *((help_DisplayLaunchArgs *) arg);
     input.context->LaunchDisplay(input.id);
+}
+
+//call launch display (used with pthreads)
+static void* help_launchGraphDisplay(void *arg)
+{
+    help_DisplayLaunchArgs input = *((help_DisplayLaunchArgs *) arg);
+    input.context->LaunchGraphDisplay(input.id);
 }
 #endif

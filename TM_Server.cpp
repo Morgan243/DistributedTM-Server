@@ -10,6 +10,7 @@ using namespace std;
     //--------------------------
     //{{{
     std::vector<unsigned int> TM_Server::memory;
+    std::vector<float> TM_Server::memory_float;
     AccessCache TM_Server::access_cache;
     std::vector<Connected_Client> TM_Server::connected_clients;
     std::vector<Connected_Display> TM_Server::connected_displays;
@@ -19,7 +20,9 @@ using namespace std;
     bool TM_Server::done;
     bool TM_Server::benchmark_enable;
     bool TM_Server::display_connected;
+    bool TM_Server::grapher_connected;
     Mode TM_Server::conflict_mode;
+    StoreType TM_Server::store_type;
 
     static pthread_mutex_t display_lock;    //lock the dipslay client vector
     static pthread_mutex_t cache_lock;      //lock the access cache
@@ -34,6 +37,7 @@ TM_Server::TM_Server()
     FullInit(10, "any", 1337);
     benchmark_enable = false;
     conflict_mode = opt_md;
+    store_type = integer;
     display_delay = 500;
     access_cache.Init(0, conflict_mode, benchmark_enable);
 //}}}
@@ -45,6 +49,7 @@ TM_Server::TM_Server(int memorySize)
     FullInit(memorySize, "any", 1337);
     benchmark_enable = false;
     conflict_mode = opt_md;
+    TM_Server::store_type = integer;
     display_delay = 500;
     access_cache.Init(0, conflict_mode, false);
 //}}}
@@ -56,6 +61,7 @@ TM_Server::TM_Server(int memorySize, string address, unsigned int port)
     FullInit(memorySize, address, port);
     benchmark_enable = false;
     conflict_mode = opt_md;
+    TM_Server::store_type = integer;
     display_delay = 500;
     access_cache.Init(0, conflict_mode, benchmark_enable);
 //}}}
@@ -67,6 +73,7 @@ TM_Server::TM_Server(int memorySize, string address, unsigned int port, bool en_
     FullInit(memorySize, address, port);
     benchmark_enable = en_benchmark;
     conflict_mode = mode;
+    TM_Server::store_type = integer;
     display_delay = 500;
     access_cache.Init(0, conflict_mode, benchmark_enable);
 //}}}
@@ -78,7 +85,27 @@ TM_Server::TM_Server(int memorySize, string address, unsigned int port, bool en_
     FullInit(memorySize, address, port);
     benchmark_enable = en_benchmark;
     conflict_mode = mode;
+    store_type = integer;
     display_delay = disp_sleep;
+    access_cache.Init(0, conflict_mode, benchmark_enable);
+//}}}
+}
+
+TM_Server::TM_Server(int memorySize, 
+                        string address, 
+                        unsigned int port, 
+                        bool en_benchmark, 
+                        Mode mode, 
+                        int disp_sleep, 
+                        StoreType str_type)
+{
+//{{{
+    benchmark_enable = en_benchmark;
+    conflict_mode = mode;
+    TM_Server::store_type = str_type;
+    cout<<TM_Server::store_type<<", "<<str_type<<endl;
+    display_delay = disp_sleep;
+    FullInit(memorySize, address, port);
     access_cache.Init(0, conflict_mode, benchmark_enable);
 //}}}
 }
@@ -101,10 +128,24 @@ void TM_Server::FullInit(int memorySize, string address, unsigned int port)
     pthread_mutex_init(&cache_lock, NULL);
     pthread_mutex_init(&mem_lock, NULL);
 
-    //create memory locations
-    for(int i = 0; i < memorySize; i++)
+    if(TM_Server::store_type == integer)
     {
-        memory.push_back(0);
+        cout<<"creating integer..."<<endl;
+        //create memory locations
+        for(int i = 0; i < memorySize; i++)
+        {
+            memory.push_back(0);
+        }
+    }
+    else if(TM_Server::store_type == float_real)
+    {
+        cout<<"creating floats..."<<endl;
+        //create memory locations
+        for(int i = 0; i < memorySize; i++)
+        {
+            memory_float.push_back(0.0);
+            cout<<"float ["<<i<<"] = "<<memory_float.back()<<endl;
+        }
     }
 
     cout<<"Server initialized on "<<TM_Server::address<<":"<<TM_Server::port<<endl;
@@ -145,12 +186,21 @@ TM_Server::~TM_Server()
 void TM_Server::SendMessage(TM_Message out_message, unsigned char out_buffer[], int client_id)
 {
 //{{{
+        int size;
+
         //clear data buffer
         bzero(out_buffer, sizeof(out_buffer));
     
-       //get string version of data
-       int size 
-           = sprintf((char*)out_buffer, "%c:%u:%u", out_message.code, out_message.address,out_message.value);
+        if(this->store_type == integer)
+        {
+           //get string version of data
+           size = sprintf((char*)out_buffer, "%c:%u:%u", out_message.code, out_message.address,out_message.value);
+        }
+        else if(this->store_type == float_real)
+        {
+           //get string version of data
+           size = sprintf((char*)out_buffer, "%c:%u:%f", out_message.code, out_message.address,out_message.value_fl);
+        }
 
         //send out the formatted string (size + 1 for null terminator)
         TM_Server::master_server.Send(out_buffer, size + 1, connected_clients[client_id].net_id);
@@ -182,6 +232,7 @@ void TM_Server::ReceiveMessage(string in_buffer, int client_id)
         temp_message.code = 0;
         temp_message.address = 0;
         temp_message.value = 0;
+        temp_message.value_fl = 0.0;
     }
     //check for client shutdown
     else if(in_buffer == "SHUTDOWN")
@@ -189,6 +240,7 @@ void TM_Server::ReceiveMessage(string in_buffer, int client_id)
         temp_message.code = 0xFF;
         temp_message.address = 0;
         temp_message.value = 0;
+        temp_message.value_fl = 0.0;
     }
     //everything is good, parse the message
     else
@@ -210,15 +262,30 @@ void TM_Server::ReceiveMessage(string in_buffer, int client_id)
         //get the address out
         temp_message.address = (unsigned int) atoi(in_buffer.substr(pos1+1, pos2-1).c_str());
         
-        //get the value out
-        temp_message.value = (unsigned int) atoi(in_buffer.substr(pos2+1, in_buffer.length()).c_str());
+        if(this->store_type == integer)
+        {
+            //get the value out
+            temp_message.value = (unsigned int) atoi(in_buffer.substr(pos2+1, in_buffer.length()).c_str());
 
-        #if DEBUG
-            cout<<"CLIENT "<<client_id<<": length = "<<in_buffer.length()<<endl;
-            cout<<hex<<"\tcode: "<<(unsigned int)temp_message.code<<endl;
-            cout<<hex<<"\taddr: "<<temp_message.address<<endl;
-            cout<<hex<<"\tvalue: "<<temp_message.value<<endl;
-        #endif
+            #if DEBUG
+                cout<<"CLIENT "<<client_id<<": length = "<<in_buffer.length()<<endl;
+                cout<<hex<<"\tcode: "<<(unsigned int)temp_message.code<<endl;
+                cout<<hex<<"\taddr: "<<temp_message.address<<endl;
+                cout<<hex<<"\tvalue: "<<temp_message.value<<endl;
+            #endif
+        }
+        else if(this->store_type == float_real)
+        {
+            //get the value out
+            temp_message.value_fl = atof(in_buffer.substr(pos2+1, in_buffer.length()).c_str());
+
+            #if DEBUG
+                cout<<"CLIENT "<<client_id<<": length = "<<in_buffer.length()<<endl;
+                cout<<hex<<"\tcode: "<<(unsigned int)temp_message.code<<endl;
+                cout<<hex<<"\taddr: "<<temp_message.address<<endl;
+                cout<<hex<<"\tvalue: "<<temp_message.value_fl<<endl;
+            #endif
+        }
     }
 
     connected_clients[client_id].in_message = temp_message;
@@ -259,7 +326,7 @@ void TM_Server::Start_Server()
         temp_client.name = temp_client.in_buffer;
 
         //launch compute nodes/clients into transaction handling
-        if(temp_client.name != "DISPLAY")
+        if(temp_client.name != "DISPLAY" && temp_client.name != "PICKLE")
         {
             //initial operation is zero
             //TM_Server::access_cache.AddProcessor(temp_client.name, 0); 
@@ -279,7 +346,7 @@ void TM_Server::Start_Server()
             pthread_create(&connected_clients.back().client_thread, NULL, help_launchThread, &temp_args);
         }
         //otherwise, launch thread to pass run-time info to the display client
-        else
+        else if(temp_client.name == "DISPLAY")
         {
 
             //populate the new display client struct
@@ -295,14 +362,37 @@ void TM_Server::Start_Server()
             pthread_mutex_lock(&display_lock);
                 connected_displays.push_back(temp_display);
 
-                disp_args.id = connected_displays.back().id = connected_displays.size() - 1;
+                display_std_id = disp_args.id = connected_displays.back().id = connected_displays.size() - 1;
                 
                 pthread_create(&connected_displays.back().display_thread, NULL, help_launchDisplay, &disp_args);
             pthread_mutex_unlock(&display_lock);
 
             this->display_connected = true;
-            cout<<"Display server connected!"<<endl;
+            cout<<"Display client connected!"<<endl;
 
+        }
+        else if(temp_client.name == "PICKLE")
+        {
+            //populate the new display client struct
+            Connected_Display temp_display;
+                temp_display.display_done = false;
+                temp_display.net_id = temp_client.net_id;
+                temp_display.name = temp_client.name;
+                pthread_mutex_init(&temp_display.disp_lock, NULL);
+
+            disp_args.context = this;
+
+            //push back the new display client and launch
+            pthread_mutex_lock(&display_lock);
+                connected_displays.push_back(temp_display);
+
+               grapher_id = disp_args.id = connected_displays.back().id = connected_displays.size() - 1;
+                
+                pthread_create(&connected_displays.back().display_thread, NULL, help_launchGraphDisplay, &disp_args);
+            pthread_mutex_unlock(&display_lock);
+
+            TM_Server::grapher_connected = true;
+            cout<<"Graph client connected!"<<endl;
         }
     }
    //}}}
@@ -409,6 +499,48 @@ void TM_Server::LaunchDisplay(int disp_id)
 //}}}
 }
 
+void TM_Server::LaunchGraphDisplay(int disp_id)
+{
+//{{{
+    int queue_size = 0, send_size = 0;
+    bool empty = true;
+    Display_Data temp_disp_data;
+
+    cout<<"Server GRAPHER thread launched..."<<endl;
+
+    while(!done)
+    {
+        //check id there is new data to send
+        pthread_mutex_lock(&display_lock);
+            queue_size = connected_displays[disp_id].outgoing.size();
+            empty = connected_displays[disp_id].outgoing.empty();
+        pthread_mutex_unlock(&display_lock);
+
+        if(!empty)
+        {
+            //get the front set of data to send out
+            pthread_mutex_lock(&display_lock);
+                temp_disp_data = connected_displays[disp_id].outgoing.front();
+                connected_displays[disp_id].outgoing.pop();
+            pthread_mutex_unlock(&display_lock);
+
+            //zero out the buffer
+            bzero(connected_displays[disp_id].out_buffer, sizeof(connected_displays[disp_id].out_buffer));
+
+            //agreed ordering: id:address:code
+            send_size = 
+                sprintf((char *)connected_displays[disp_id].out_buffer, "[%u,%f]",
+                                 temp_disp_data.address, temp_disp_data.value_fl);
+
+            TM_Server::master_server.Send(connected_displays[disp_id].out_buffer, send_size + 1, connected_displays[disp_id].net_id);
+        }
+
+        //sleepy time a bit
+        usleep(display_delay);
+    }
+//}}}
+}
+
 void TM_Server::HandleRequest(int client_id)
 {
 //{{{
@@ -447,10 +579,25 @@ void TM_Server::HandleRequest(int client_id)
 
         pthread_mutex_lock(&mem_lock);
         
-            //set the value in memory
-            memory[connected_clients[client_id].in_message.address] = connected_clients[client_id].in_message.value;
+            if(this->store_type == integer)
+            {
+                //set the value in memory
+                memory[connected_clients[client_id].in_message.address] = connected_clients[client_id].in_message.value;
+            }
+            else if(this->store_type == float_real)
+            {
+                //set the value in memory
+                memory_float[connected_clients[client_id].in_message.address] = connected_clients[client_id].in_message.value_fl;
 
-            if(this->display_connected)
+                if(TM_Server::grapher_connected)
+                    EnqueueValue(connected_clients[client_id].in_message.address,
+                                         client_id, 
+                                            connected_clients[client_id].in_message.value_fl);
+
+            }
+
+
+            if(TM_Server::display_connected)
                 EnqueueWrite(connected_clients[client_id].in_message.address, client_id);
 
 
@@ -600,10 +747,20 @@ void TM_Server::ReadAttempt(int client_id)
                 //echo message back but with th value included
                 connected_clients[client_id].out_message = connected_clients[client_id].in_message;
 
-                pthread_mutex_lock(&mem_lock);
-                    connected_clients[client_id].out_message.value 
-                        = memory[connected_clients[client_id].out_message.address];
-                pthread_mutex_unlock(&mem_lock);
+                if(this->store_type == integer)
+                {
+                    pthread_mutex_lock(&mem_lock);
+                        connected_clients[client_id].out_message.value 
+                            = memory[connected_clients[client_id].out_message.address];
+                    pthread_mutex_unlock(&mem_lock);
+                } 
+                else if(this->store_type == float_real)
+                {
+                    pthread_mutex_lock(&mem_lock);
+                        connected_clients[client_id].out_message.value_fl
+                            = memory_float[connected_clients[client_id].out_message.address];
+                    pthread_mutex_unlock(&mem_lock);
+                }
             }
             else
             {
@@ -658,6 +815,7 @@ void TM_Server::CommitAttempt(int client_id)
             
             //check access cache
             access_cache.setRegs(client_id, COMMIT_T, connected_clients[client_id].in_message.address);
+
             if(access_cache.RunFSM())
             {
                 //echo message
@@ -727,10 +885,20 @@ void TM_Server::InitAttempt(int client_id)
             //echo message back but with th value included
             connected_clients[client_id].out_message = connected_clients[client_id].in_message;
 
-            pthread_mutex_lock(&mem_lock);
-                connected_clients[client_id].out_message.value 
+            if(this->store_type == integer)
+            {
+                pthread_mutex_lock(&mem_lock);
+                    connected_clients[client_id].out_message.value 
                         = memory[connected_clients[client_id].out_message.address];
-            pthread_mutex_unlock(&mem_lock);
+                pthread_mutex_unlock(&mem_lock);
+            } 
+            else if(this->store_type == float_real)
+            {
+                pthread_mutex_lock(&mem_lock);
+                    connected_clients[client_id].out_message.value_fl
+                        = memory_float[connected_clients[client_id].out_message.address];
+                pthread_mutex_unlock(&mem_lock);
+            }
         }
         else
         {
@@ -806,4 +974,18 @@ void TM_Server::EnqueueRead(unsigned int address, int node_id)
         connected_displays.back().outgoing.push(temp_disp_data);
     pthread_mutex_unlock(&connected_displays.back().disp_lock);
 //}}}
+}
+
+void TM_Server::EnqueueValue(unsigned int address, int node_id, float value)
+{
+//{{{
+    Display_Data temp_disp_data;
+        temp_disp_data.address = address;
+        temp_disp_data.value_fl = value;
+
+    pthread_mutex_lock(&connected_displays.back().disp_lock);
+        connected_displays[grapher_id].outgoing.push(temp_disp_data);
+    pthread_mutex_unlock(&connected_displays.back().disp_lock);
+//}}}
+
 }
