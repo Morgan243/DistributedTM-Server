@@ -97,6 +97,7 @@ class TM_Server
 
         int display_delay;                  //How long to sleep display client handle thread between sends
         int display_std_id, grapher_id;
+        int memory_size;
 
 
         //listen address and port

@@ -123,6 +123,8 @@ void TM_Server::FullInit(int memorySize, string address, unsigned int port)
     //don't stop until done is true
     TM_Server::done = false;
 
+    this->memory_size = memorySize;
+
     //initialize the mutexes for memory and access cache
     pthread_mutex_init(&display_lock, NULL);
     pthread_mutex_init(&cache_lock, NULL);
@@ -527,12 +529,15 @@ void TM_Server::LaunchGraphDisplay(int disp_id)
             //zero out the buffer
             bzero(connected_displays[disp_id].out_buffer, sizeof(connected_displays[disp_id].out_buffer));
 
-            //agreed ordering: id:address:code
-            send_size = 
-                sprintf((char *)connected_displays[disp_id].out_buffer, "[%u,%f]",
-                                 temp_disp_data.address, temp_disp_data.value_fl);
+            if(temp_disp_data.address < this->memory_size - 2)
+            {
+                //agreed ordering: id:address:code
+                send_size = 
+                    sprintf((char *)connected_displays[disp_id].out_buffer, "[%u,%f]",
+                                     temp_disp_data.address, temp_disp_data.value_fl);
 
-            TM_Server::master_server.Send(connected_displays[disp_id].out_buffer, send_size + 1, connected_displays[disp_id].net_id);
+                TM_Server::master_server.Send(connected_displays[disp_id].out_buffer, send_size + 1, connected_displays[disp_id].net_id);
+            }
         }
 
         //sleepy time a bit
