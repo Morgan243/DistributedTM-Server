@@ -328,7 +328,7 @@ void TM_Server::Start_Server()
         temp_client.name = temp_client.in_buffer;
 
         //launch compute nodes/clients into transaction handling
-        if(temp_client.name != "DISPLAY" && temp_client.name != "PICKLE")
+        if(temp_client.name[0] != 'D' && temp_client.name[0] != 'P' )
         {
             //initial operation is zero
             //TM_Server::access_cache.AddProcessor(temp_client.name, 0); 
@@ -348,7 +348,7 @@ void TM_Server::Start_Server()
             pthread_create(&connected_clients.back().client_thread, NULL, help_launchThread, &temp_args);
         }
         //otherwise, launch thread to pass run-time info to the display client
-        else if(temp_client.name == "DISPLAY")
+        else if(temp_client.name[0] == 'D')
         {
 
             //populate the new display client struct
@@ -365,15 +365,17 @@ void TM_Server::Start_Server()
                 connected_displays.push_back(temp_display);
 
                 display_std_id = disp_args.id = connected_displays.back().id = connected_displays.size() - 1;
+
+                cout<<"Display ID: "<<display_std_id<<endl;
                 
                 pthread_create(&connected_displays.back().display_thread, NULL, help_launchDisplay, &disp_args);
             pthread_mutex_unlock(&display_lock);
 
-            this->display_connected = true;
+            TM_Server::display_connected = true;
             cout<<"Display client connected!"<<endl;
 
         }
-        else if(temp_client.name == "PICKLE")
+        else if(temp_client.name[0] == 'P')
         {
             //populate the new display client struct
             Connected_Display temp_display;
@@ -389,6 +391,7 @@ void TM_Server::Start_Server()
                 connected_displays.push_back(temp_display);
 
                grapher_id = disp_args.id = connected_displays.back().id = connected_displays.size() - 1;
+               cout<<"Grapher ID: "<<grapher_id<<endl;
                 
                 pthread_create(&connected_displays.back().display_thread, NULL, help_launchGraphDisplay, &disp_args);
             pthread_mutex_unlock(&display_lock);
@@ -471,18 +474,22 @@ void TM_Server::LaunchDisplay(int disp_id)
     while(!done)
     {
         //check id there is new data to send
-        pthread_mutex_lock(&display_lock);
+        //pthread_mutex_lock(&display_lock);
+        pthread_mutex_lock(&connected_displays[disp_id].disp_lock);
             queue_size = connected_displays[disp_id].outgoing.size();
             empty = connected_displays[disp_id].outgoing.empty();
-        pthread_mutex_unlock(&display_lock);
+        pthread_mutex_unlock(&connected_displays[disp_id].disp_lock);
+        //pthread_mutex_unlock(&display_lock);
 
         if(!empty)
         {
             //get the front set of data to send out
-            pthread_mutex_lock(&display_lock);
+            //pthread_mutex_lock(&display_lock);
+            pthread_mutex_lock(&connected_displays[disp_id].disp_lock);
                 temp_disp_data = connected_displays[disp_id].outgoing.front();
                 connected_displays[disp_id].outgoing.pop();
-            pthread_mutex_unlock(&display_lock);
+            pthread_mutex_unlock(&connected_displays[disp_id].disp_lock);
+            //pthread_mutex_unlock(&display_lock);
 
             //zero out the buffer
             bzero(connected_displays[disp_id].out_buffer, sizeof(connected_displays[disp_id].out_buffer));
@@ -513,18 +520,22 @@ void TM_Server::LaunchGraphDisplay(int disp_id)
     while(!done)
     {
         //check id there is new data to send
-        pthread_mutex_lock(&display_lock);
+        //pthread_mutex_lock(&display_lock);
+        pthread_mutex_lock(&connected_displays[disp_id].disp_lock);
             queue_size = connected_displays[disp_id].outgoing.size();
             empty = connected_displays[disp_id].outgoing.empty();
-        pthread_mutex_unlock(&display_lock);
+        pthread_mutex_unlock(&connected_displays[disp_id].disp_lock);
+        //pthread_mutex_unlock(&display_lock);
 
         if(!empty)
         {
             //get the front set of data to send out
-            pthread_mutex_lock(&display_lock);
+            //pthread_mutex_lock(&display_lock);
+            pthread_mutex_lock(&connected_displays[disp_id].disp_lock);
                 temp_disp_data = connected_displays[disp_id].outgoing.front();
                 connected_displays[disp_id].outgoing.pop();
-            pthread_mutex_unlock(&display_lock);
+            pthread_mutex_unlock(&connected_displays[disp_id].disp_lock);
+            //pthread_mutex_unlock(&display_lock);
 
             //zero out the buffer
             bzero(connected_displays[disp_id].out_buffer, sizeof(connected_displays[disp_id].out_buffer));
@@ -606,8 +617,6 @@ void TM_Server::HandleRequest(int client_id)
                 EnqueueWrite(connected_clients[client_id].in_message.address, client_id);
 
 
-            if(this->display_connected)
-                EnqueueCommit(connected_clients[client_id].in_message.address, client_id);
 
         pthread_mutex_unlock(&mem_lock);
 
@@ -628,11 +637,8 @@ void TM_Server::HandleRequest(int client_id)
 
             connected_clients[client_id].out_message = connected_clients[client_id].in_message;
 
-            if(this->display_connected)
+            if(TM_Server::display_connected)
                 EnqueueRead(connected_clients[client_id].in_message.address, client_id);
-
-            if(this->display_connected)
-                EnqueueCommit(connected_clients[client_id].in_message.address, client_id);
 
         #if DEBUG
             cout<<"\tCommit finished..."<<endl;
@@ -645,6 +651,9 @@ void TM_Server::HandleRequest(int client_id)
             cout<<"Node "<< client_id<< " has indicated that the data phase has ended for this commit"<<endl;
             cout<<"Clearing sets in cache..."<<endl;
         #endif
+
+        if(TM_Server::display_connected)
+            EnqueueCommit(connected_clients[client_id].in_message.address, client_id);
 
         pthread_mutex_lock(&cache_lock);
             TM_Server::access_cache.clearNodeSets(client_id);
@@ -933,9 +942,9 @@ void TM_Server::EnqueueAbort(unsigned int address, int node_id)
         temp_disp_data.node_id = node_id;
         temp_disp_data.code = '8';
 
-    pthread_mutex_lock(&connected_displays.back().disp_lock);
+    pthread_mutex_lock(&connected_displays[display_std_id].disp_lock);
         connected_displays.back().outgoing.push(temp_disp_data);
-    pthread_mutex_unlock(&connected_displays.back().disp_lock);
+    pthread_mutex_unlock(&connected_displays[display_std_id].disp_lock);
 //}}}
 }
 
@@ -947,9 +956,11 @@ void TM_Server::EnqueueCommit(unsigned int address, int node_id)
         temp_disp_data.node_id = node_id;
         temp_disp_data.code = '4';
 
-    pthread_mutex_lock(&connected_displays.back().disp_lock);
+    //pthread_mutex_lock(&connected_displays.back().disp_lock);
+    pthread_mutex_lock(&connected_displays[display_std_id].disp_lock);
         connected_displays.back().outgoing.push(temp_disp_data);
-    pthread_mutex_unlock(&connected_displays.back().disp_lock);
+    pthread_mutex_unlock(&connected_displays[display_std_id].disp_lock);
+    //pthread_mutex_unlock(&connected_displays.back().disp_lock);
 //}}}
 }
 
@@ -961,9 +972,11 @@ void TM_Server::EnqueueWrite(unsigned int address, int node_id)
         temp_disp_data.node_id = node_id;
         temp_disp_data.code = '2';
 
-    pthread_mutex_lock(&connected_displays.back().disp_lock);
+    //pthread_mutex_lock(&connected_displays.back().disp_lock);
+    pthread_mutex_lock(&connected_displays[display_std_id].disp_lock);
         connected_displays.back().outgoing.push(temp_disp_data);
-    pthread_mutex_unlock(&connected_displays.back().disp_lock);
+    pthread_mutex_unlock(&connected_displays[display_std_id].disp_lock);
+    //pthread_mutex_unlock(&connected_displays.back().disp_lock);
 //}}}
 }
 
@@ -975,9 +988,11 @@ void TM_Server::EnqueueRead(unsigned int address, int node_id)
         temp_disp_data.node_id = node_id;
         temp_disp_data.code = '1';
 
-    pthread_mutex_lock(&connected_displays.back().disp_lock);
+    //pthread_mutex_lock(&connected_displays.back().disp_lock);
+    pthread_mutex_lock(&connected_displays[display_std_id].disp_lock);
         connected_displays.back().outgoing.push(temp_disp_data);
-    pthread_mutex_unlock(&connected_displays.back().disp_lock);
+    pthread_mutex_unlock(&connected_displays[display_std_id].disp_lock);
+    //pthread_mutex_unlock(&connected_displays.back().disp_lock);
 //}}}
 }
 
@@ -988,9 +1003,11 @@ void TM_Server::EnqueueValue(unsigned int address, int node_id, float value)
         temp_disp_data.address = address;
         temp_disp_data.value_fl = value;
 
-    pthread_mutex_lock(&connected_displays.back().disp_lock);
+    //pthread_mutex_lock(&connected_displays.back().disp_lock);
+    pthread_mutex_lock(&connected_displays[grapher_id].disp_lock);
         connected_displays[grapher_id].outgoing.push(temp_disp_data);
-    pthread_mutex_unlock(&connected_displays.back().disp_lock);
+    pthread_mutex_unlock(&connected_displays[grapher_id].disp_lock);
+    //pthread_mutex_unlock(&connected_displays.back().disp_lock);
 //}}}
 
 }
